@@ -39,9 +39,9 @@ def main():
     parser.add_argument('--B1',        nargs="?",help="Input B1 map NIfTI path.")
     parser.add_argument('--mask',      nargs="?",help="Input Mask binary NIfTI path.")
     parser.add_argument('--S0',        nargs="?", help="Output S0 NIfTI path.")
-    parser.add_argument('--FitType',   type=int, default=1, help="Fitting type \n"
-                                                                    "\t 1: Nonlinear Least-Square (default)\n"
-                                                                    "\t 2: Linear Least-Square\n" 
+    parser.add_argument('--FitType',   nargs="?", default='NLS', help="Fitting type \n"
+                                                                    "\t NLS: Nonlinear Least-Square (default)\n"
+                                                                    "\t LLS: Linear Least-Square\n" 
                                                                     "\tNLS fit is more appropriate for noisy data [1], although slower.\n"
                                                                     "\tFor 2-points VFA, LLS will be used (faster and equivalent to NLS).")
     args = parser.parse_args()
@@ -151,8 +151,8 @@ def main():
     else:
         for ii in range(len(VFA_in_niipaths)):
             VFA_data.append(nibabel.load(VFA_in_niipaths[ii]).get_fdata())
-    if len(VFA_data) == 2 and args.FitType == 1:
-        args.FitType == 2
+    if len(VFA_data) == 2 and args.FitType == 'NLS':
+        args.FitType == 'LLS'
         print('2-points VFA case: LLS fitting')
     
     # get B1 data
@@ -192,9 +192,9 @@ def main():
     print('')
     
     ref_nii = nibabel.load(VFA_in_niipaths[0])
-    if args.FitType == 1:
+    if args.FitType == 'NLS':
         T1_map, S0_map = compute_T1_S0_map_NonLin(list_iterable,NWORKERS,mask_idx,ref_nii)
-    elif args.FitType == 2:    
+    elif args.FitType == 'LLS':    
         T1_map, S0_map = compute_T1_S0_map_Lin(list_iterable,NWORKERS,mask_idx,ref_nii)
     else:
        parser.error('Unknown --FitType input') 

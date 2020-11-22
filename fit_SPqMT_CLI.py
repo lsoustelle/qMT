@@ -57,8 +57,8 @@ def main():
     parser.add_argument('--B1',        nargs="?",help="Input B1 map NIfTI path")
     parser.add_argument('--B0',        nargs="?",help="Input B0 map NIfTI path")
     parser.add_argument('--mask',      nargs="?",help="Input Mask binary NIfTI path")
-    parser.add_argument('--nworkers',  type=int, default=1, help="Use this for multi-threading computation (default: 1)")
-    parser.add_argument('--RecoTypePreset',  type=int, default=1,help="SP-qMT reconstruction type (integer): \n"  
+    parser.add_argument('--nworkers',  nargs="?",type=int, default=1, help="Use this for multi-threading computation (default: 1)")
+    parser.add_argument('--RecoTypePreset',  nargs="?",type=int, default=1,help="SP-qMT reconstruction type (integer): \n"  
                                                                 "\t 1: Adult human brain 3T [1,2] (default) \n"
                                                                 "\t 2: Adult mouse brain 7T [4]")
     parser.add_argument('--qMTconstraintParx',  help="Constained parameters for SP-qMT estimation (comma-separated; overrules --RecoTypePreset) in this order:\n"  

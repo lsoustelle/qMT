@@ -26,7 +26,7 @@ def main():
     parser.add_argument('TR',          type=float, help="Sequence Time to Repetition (ms).")
     parser.add_argument('FA',          type=float,help="Flip Angle (degrees).")
     parser.add_argument('SPGR',        help="Output synthetized SPGR NIfTI path.")
-    parser.add_argument('--B1',        help="Input B1 map NIfTI path.")
+    parser.add_argument('--B1',        nargs="?",help="Input B1 map NIfTI path.")
 
     args = parser.parse_args()
     SPGR_out_niipath    = args.SPGR

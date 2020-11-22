@@ -81,7 +81,6 @@ def main():
         if not os.path.isfile(meta_data_path):
             meta_data_path = None
         meta_data_paths.append(meta_data_path)
-    print(meta_data_paths)
        
     # parse FA from JSONs
     if args.FA is None and FLAG_isVFA4D == 0:
@@ -193,7 +192,6 @@ def main():
     print('')
     
     ref_nii = nibabel.load(VFA_in_niipaths[0])
-    if args.FitType: args.FitType = 2
     if args.FitType == 1:
         T1_map, S0_map = compute_T1_S0_map_NonLin(list_iterable,NWORKERS,mask_idx,ref_nii)
     elif args.FitType == 2:    

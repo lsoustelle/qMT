@@ -351,14 +351,15 @@ def func_prepare_qMTparx(B1_data,T1_data,B0_data):
     
 
 def func_AI_PI_ShapedGauss(tau,BW,boolHannApo):
-    sigma   = numpy.sqrt(2*numpy.log(2) / (numpy.pi*BW)**2);
     if boolHannApo and BW != 0: # Gauss-Hann
+        sigma      = numpy.sqrt(2*numpy.log(2) / (numpy.pi*BW)**2)
         satPulse   = lambda t: ( numpy.exp(-((t-(tau/2))**2)/(2*sigma**2)) * 0.5*(1 - numpy.cos((2*numpy.pi*t)/tau)) )
         satPulseSq = lambda t: ( numpy.exp(-((t-(tau/2))**2)/(2*sigma**2)) * 0.5*(1 - numpy.cos((2*numpy.pi*t)/tau)) )**2
     if boolHannApo and BW == 0: # pure Hann
         satPulse   = lambda t: ( 0.5*(1 - numpy.cos((2*numpy.pi*t)/tau)) )
         satPulseSq = lambda t: ( 0.5*(1 - numpy.cos((2*numpy.pi*t)/tau)) )**2
     else: # pure Gauss
+        sigma      = numpy.sqrt(2*numpy.log(2) / (numpy.pi*BW)**2)
         satPulse   = lambda t: ( numpy.exp(-((t-(tau/2))**2)/(2*sigma**2)) )
         satPulseSq = lambda t: ( numpy.exp(-((t-(tau/2))**2)/(2*sigma**2)) )**2
     integ   = scipy.integrate.quad(satPulse,0,tau)

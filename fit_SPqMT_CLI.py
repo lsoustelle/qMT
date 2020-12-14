@@ -17,7 +17,7 @@ import subprocess
 import collections
 
 def main():
-    global gamma; gamma = 267.513 * 1e6; # rad/s/T
+    global gamma; gamma = 267.513 * 1e6 # rad/s/T
     global SEQparx; global qMTparx
 
 
@@ -331,7 +331,7 @@ def func_prepare_qMTparx(B1_data,T1_data,B0_data):
     #### Wf array 
     R1_data     = numpy.reciprocal(T1_data)
     Wf_array    = (w1RMS_nom/(2*numpy.pi))**2 / qMTparx.R1fT2f / (SEQparx.delta_f+B0_data)**2 \
-                    * numpy.multiply(R1_data,B1_data**2);
+                    * numpy.multiply(R1_data,B1_data**2)
     
     ### FAro array
     FAro_array  = B1_data * SEQparx.FAro
@@ -385,27 +385,27 @@ def func_SPqMT_root(F,xData,yData):
     f   = F/(1+F)
     
     # non-variable
-    Rl  = numpy.array([[-R1f-R*F, R],[R*F, -R1r-R]]);
-    Meq = numpy.array([1-f, f]);
+    Rl  = numpy.array([[-R1f-R*F, R],[R*F, -R1r-R]])
+    Meq = numpy.array([1-f, f])
     A   = R1f*R1r + R1f*R + R1r*R*F
-    D   = A + (R1f+R*F)*Wb + (R1r+R)*Wf + Wb*Wf;
-    Es  = scipy.linalg.expm(Rl*Ts);
-    Er  = scipy.linalg.expm(Rl*Tr);
-    C   = numpy.diag([numpy.cos(FAro*numpy.pi/180),1.0]);
+    D   = A + (R1f+R*F)*Wb + (R1r+R)*Wf + Wb*Wf
+    Es  = scipy.linalg.expm(Rl*Ts)
+    Er  = scipy.linalg.expm(Rl*Tr)
+    C   = numpy.diag([numpy.cos(FAro*numpy.pi/180),1.0])
     I   = numpy.eye(2)
-    W   = numpy.array([[-Wf, 0],[0, -Wb]]);    
+    W   = numpy.array([[-Wf, 0],[0, -Wb]])
     
     # MTw
     Mss =  1/D*numpy.array([(1-f)*(A+R1f*Wb), f*(A+R1r*Wf)])   
-    Em  =  scipy.linalg.expm( (Rl+W)*Tm );   
+    Em  =  scipy.linalg.expm( (Rl+W)*Tm )
     Mz  =  scipy.linalg.inv(I - Es @ Em @ Er @ C) @ \
-            ( (Es @ Em @ (I-Er) + (I-Es)) @ Meq + Es @ (I-Em) @ Mss );
+            ( (Es @ Em @ (I-Er) + (I-Es)) @ Meq + Es @ (I-Em) @ Mss )
     
     # MT0
     MssN = 1/A * numpy.array([(1-f)*A, f*A])
-    EmN  = scipy.linalg.expm( Rl*Tm );  
+    EmN  = scipy.linalg.expm( Rl*Tm )
     MzN  = scipy.linalg.inv(I - Es @ EmN @ Er @ C) @ \
-            ( (Es @ EmN @ (I - Er) + (I-Es)) @ Meq + Es @ ( I-EmN ) @ MssN );
+            ( (Es @ EmN @ (I - Er) + (I-Es)) @ Meq + Es @ ( I-EmN ) @ MssN )
         
     return Mz[0]/MzN[0] - yData
 

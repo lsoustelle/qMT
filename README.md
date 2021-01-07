@@ -29,7 +29,7 @@ python3 fit_SPqMT_CLI.py  \
             --mask mask.nii.gz \
             --nworkers 6 
 ```
-See the `--help` option from each scripts for further information.
+See the `--help` option from each script for further information.
 
 ## Dependencies
 * The package is intended to have NIfTI files as inputs; please consider conversion package such as [DICOMIFIER](https://github.com/lamyj/dicomifier) or [dcm2niix](https://github.com/rordenlab/dcm2niix).

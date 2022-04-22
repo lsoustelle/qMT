@@ -19,7 +19,7 @@ import collections
 def main():
     global gamma; gamma = 267.513 * 1e6 # rad/s/T
     global SEQparx; global qMTparx
-
+    global NWORKERS;
 
     ## parse arguments
     text_description = "Fit a Macromolecular Proton Fraction (MPF) map from a Single-Point qMT protocol.\
@@ -315,7 +315,7 @@ def func_prepare_qMTparx(B1_data,T1_data,B0_data):
         T2r             = numpy.full(B0_data.shape[0],qMTparx.T2r)[numpy.newaxis,:].T
         list_iterable   = numpy.hstack((T2r,delta_f_corr))
         start_time = time.time()
-        with multiprocessing.Pool(6) as pool:
+        with multiprocessing.Pool(NWORKERS) as pool:
             G_res  = pool.starmap(func_G,list_iterable)
         delay = time.time()
         print("--- ... Done in {} seconds" .format(delay - start_time))

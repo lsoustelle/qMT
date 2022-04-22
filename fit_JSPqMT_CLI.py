@@ -83,8 +83,7 @@ def main():
     B1_in_niipath       = args.B1
     B0_in_niipath       = args.B0
     mask_in_niipath     = args.mask
-    # NWORKERS            = args.nworkers if args.nworkers <= get_physCPU_number() else get_physCPU_number()
-    NWORKERS            = args.nworkers 
+    NWORKERS            = args.nworkers if args.nworkers <= get_physCPU_number() else get_physCPU_number()
     print('Working with {} cores'.format(NWORKERS))
     
     #### Check inputs

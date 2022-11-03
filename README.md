@@ -1,23 +1,24 @@
 Description
 -----------
 A collection of command-line Python-based scripts for voxel-wise computation of:
-* Joint R1f & Macromolecular Proton Fraction (MPF) maps using a Variable Flip Angle (VFA) & a single {MTw/MT<sub>0</sub>} protocol [1] (*fit_JSPqMT_CLI.py*); an single-point extension of the proposed method in [2].
+* Joint R1f & Macromolecular Proton Fraction (MPF) maps using a Variable Flip Angle (VFA) & a single {MTw/MT<sub>0</sub>} protocol [1] (*fit_JSPqMT_CLI.py*); a single-point extension of the proposed method in [2].
 * T<sub>1</sub> maps using the Variable Flip Angle method [3] (*fit_VFA_CLI.py*).
 * MPF maps using the original Single-Point MPF method [4] (*fit_SPqMT_CLI.py*).
 * MTsat maps as described in [5] (*fit_SPqMT_CLI.py*).
 
 MRI Sequences
 -------------
-* Siemens users: two sequences (__greMT__ [VB17/VE11C/VE11E/XA20] & __vibeMT__ [XA20]) are made available on the Siemens C<sup>2</sup>P Exchange platform (teamplay).
-The user interfaces match the specific parameters to be passed in the *fit_JSPqMT_CLI.py* and *fit_SPqMT_CLI.py* scripts.
-* Bruker users: the constructor FLASH sequence can be used with its tunable MT preparation module.
+* **Siemens users**: two prototype sequences (__greMT__ [VB17/VE11C/VE11E/XA20] & __vibeMT__ [XA20/XA30/XA31]) are made available on the Siemens C<sup>2</sup>P Exchange platform (teamplay).
+* **Bruker users**: a prototype SPGR sequence is made available upon request [@LucasSoustelle](https://twitter.com/LucasSoustelle).
 
-Of common note, the *fit_JSPqMT_CLI.py* script is intended to be used with MTw experiments that comprise sine-modulated off-resonance pulses [1].
+The user interfaces for both constructor match the specific parameters to be passed in the *fit_JSPqMT_CLI.py* and *fit_SPqMT_CLI.py* scripts.
+
+Of common note, the *fit_JSPqMT_CLI.py* script is intended to be used on MTw data prepared with sine-modulated off-resonance pulses [1].
 
 Additional features
 -------------------
 * As in Ref. [6], a synthetic MT reference can be computed from a 2-points VFA protocol (*synt_SPGR_CLI.py*).
-* For original SP-MPF computation, two presets of constraint qMT parameters are proposed for adult human brain at 3T [3] and adult mouse brain at 7T [7].
+* For original SP-MPF computation (*fit_SPqMT_CLI.py*), two presets of constraint qMT parameters are proposed for adult human brain at 3T [3] and adult mouse brain at 7T [7].
 
 Dependencies
 ------------

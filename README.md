@@ -8,8 +8,8 @@ A collection of command-line Python-based scripts for voxel-wise computation of:
 
 MRI Sequences
 -------------
-* **Siemens users**: two prototype sequences (__greMT__ [VB17/VE11C/VE11E/XA20] & __vibeMT__ [XA20/XA30/XA31]) are made available on the Siemens C<sup>2</sup>P Exchange platform (teamplay).
-* **Bruker users**: a prototype SPGR sequence is made available upon request [@LucasSoustelle](https://twitter.com/LucasSoustelle).
+* **Siemens users**: two prototype sequences (__greMT__ [VB17/VE11C/VE11E/VE12U/XA20/XA30/XA31] & __vibeMT__ [XA20/XA30/XA31/XA50]) are available on the Siemens C<sup>2</sup>P Exchange platform (teamplay).
+* **Bruker users**: a prototype SPGR sequence is available upon request [@LucasSoustelle](https://twitter.com/LucasSoustelle).
 
 The user interfaces for both constructor match the specific parameters to be passed in the *fit_JSPqMT_CLI.py* and *fit_SPqMT_CLI.py* scripts.
 
@@ -17,13 +17,14 @@ Of common note, the *fit_JSPqMT_CLI.py* script is intended to be used on MTw dat
 
 Additional features
 -------------------
+For original SP-MPF computation
 * As in Ref. [6], a synthetic MT reference can be computed from a 2-points VFA protocol (*synt_SPGR_CLI.py*).
-* For original SP-MPF computation (*fit_SPqMT_CLI.py*), two presets of constraint qMT parameters are proposed for adult human brain at 3T [3] and adult mouse brain at 7T [7].
+* In *fit_SPqMT_CLI.py*, two presets of constraint qMT parameters are proposed for adult human brain at 3T [3] and adult mouse brain at 7T [7].
 
 Dependencies
 ------------
-* The package is intended to have NIfTI files as inputs; please consider conversion package such as [DICOMIFIER](https://github.com/lamyj/dicomifier) or [dcm2niix](https://github.com/rordenlab/dcm2niix).
-* Specific Python packages: numpy , scipy and nibabel.
+* The package is intended to have NIfTI files as inputs; please consider conversion package such as [dcm2niix](https://github.com/rordenlab/dcm2niix) or [DICOMIFIER](https://github.com/lamyj/dicomifier).
+* Specific Python packages: numpy, scipy and nibabel.
     - Tested on Python 3.8.2 (Windows 10, Ubuntu 20.04 & 18.04), with numpy-1.19.4, scipy-1.5.4 and nibabel-3.2.0
     - For computational efficiency, it is strongly advised to have a numpy package compiled with MKL (native in conda default channels)
 
@@ -70,7 +71,7 @@ See the `--help` option from each script for detailed information.
 
 References
 ----------
-[1] L. Soustelle et al., Quantitative Magnetization Transfer parametric mapping unbiased by on-resonance saturation and dipolar order contributions, ISMRM 2022
+[1] L. Soustelle et al., Quantitative magnetization transfer MRI unbiased by on‐resonance saturation and dipolar order contributions, MRM 2023
 
 [2] P. Mossahebi et al., Analysis and correction of biases in cross-relaxation MRI due to biexponential longitudinal relaxation, MRM 2014;71:830-838
 

@@ -1,10 +1,10 @@
 Description
 -----------
 A collection of command-line Python-based scripts for voxel-wise computation of:
-* Joint R1f & Macromolecular Proton Fraction (MPF) maps using a Variable Flip Angle (VFA) & a single {MTw/MT<sub>0</sub>} protocol [1] (*fit_JSPqMT_CLI.py*); a single-point extension of the proposed method in [2].
-* T<sub>1</sub> maps using the Variable Flip Angle method [3] (*fit_VFA_CLI.py*).
-* MPF maps using the original Single-Point MPF method [4] (*fit_SPqMT_CLI.py*).
-* MTsat maps as described in [5] (*fit_SPqMT_CLI.py*).
+* Joint R1f & Macromolecular Proton Fraction (MPF) maps using a Variable Flip Angle (VFA) & a single {MTw/MT<sub>0</sub>} protocol [1] (*fit_JSPqMT_CLI.py*; "Joint Single-Point qMT").
+* T<sub>1</sub> maps using the Variable Flip Angle method [2] (*fit_VFA_CLI.py*).
+* MPF maps using the original Single-Point MPF method [3] (*fit_SPqMT_CLI.py*).
+* MTsat maps as described in [4] (*fit_SPqMT_CLI.py*).
 
 MRI Sequences
 -------------
@@ -18,8 +18,8 @@ Of common note, the *fit_JSPqMT_CLI.py* script is intended to be used on MTw dat
 Additional features
 -------------------
 For original SP-MPF computation
-* As in Ref. [6], a synthetic MT reference can be computed from a 2-points VFA protocol (*synt_SPGR_CLI.py*).
-* In *fit_SPqMT_CLI.py*, two presets of constraint qMT parameters are proposed for adult human brain at 3T [3] and adult mouse brain at 7T [7].
+* As in Ref. [5], a synthetic MT reference can be computed from a 2-points VFA protocol (*synt_SPGR_CLI.py*).
+* In *fit_SPqMT_CLI.py*, two presets of constraint qMT parameters are proposed for adult human brain at 3T [3] and adult mouse brain at 7T [6].
 
 Dependencies
 ------------
@@ -73,15 +73,13 @@ References
 ----------
 [1] L. Soustelle et al., Quantitative magnetization transfer MRI unbiased by on‐resonance saturation and dipolar order contributions, MRM 2023
 
-[2] P. Mossahebi et al., Analysis and correction of biases in cross-relaxation MRI due to biexponential longitudinal relaxation, MRM 2014;71:830-838
+[2] L. Chang et al., Linear least-squares method for unbiased estimation of T1 from SPGR signals, MRM 2008;60:496-501
 
-[3] L. Chang et al., Linear least-squares method for unbiased estimation of T1 from SPGR signals, MRM 2008;60:496-501
+[3] V. Yarnykh, Fast macromolecular proton fraction mapping from a single off-resonance magnetization transfer measurement, MRM 2012;68:166-178
 
-[4] V. Yarnykh, Fast macromolecular proton fraction mapping from a single off-resonance magnetization transfer measurement, MRM 2012;68:166-178
+[4] G. Helms et al., High-resolution maps of magnetization transfer with inherent correction for RF inhomogeneity and T1 relaxation obtained from 3D FLASH MRI, MRM 2008;60:1396-1407
 
-[5] G. Helms et al., High-resolution maps of magnetization transfer with inherent correction for RF inhomogeneity and T1 relaxation obtained from 3D FLASH MRI, MRM 2008;60:1396-1407
+[5] V. Yarnykh, Time-efficient, high-resolution, whole brain three-dimensional macromolecular proton fraction mapping, MRM 2016;75:2100-2106 
 
-[6] V. Yarnykh, Time-efficient, high-resolution, whole brain three-dimensional macromolecular proton fraction mapping, MRM 2016;75:2100-2106 
-
-[7] L. Soustelle et al., Determination of optimal parameters for 3D single‐point macromolecular proton fraction mapping at 7T in healthy and demyelinated mouse brain, MRM 2021;85:369-379 
+[6] L. Soustelle et al., Determination of optimal parameters for 3D single‐point macromolecular proton fraction mapping at 7T in healthy and demyelinated mouse brain, MRM 2021;85:369-379 
 

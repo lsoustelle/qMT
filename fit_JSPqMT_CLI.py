@@ -71,10 +71,10 @@ def main():
     parser.add_argument('--mask',               nargs="?",help="Input Mask binary NIfTI path")
     parser.add_argument('--nworkers',           nargs="?",type=int, default=1, help="Use this for multi-threading acceleration (default: 1)")
     parser.add_argument('--qMTconstraint_PARX',  help="Constained parameters for SP-qMT estimation (comma-separated) in this order:\n"  
-                                                                "\t 1) R1fT2f \n"
-                                                                "\t 2) T2r (s) \n"
-                                                                "\t 3) R (s-1) \n"
-                                                                "e.g. --qMTconstraint_PARX 0.022,10.0e-6,19")
+                                                                "\t 1) R1fT2f (default: 0.0158) \n"
+                                                                "\t 2) T2r (s; default: 10.0e-6 s) \n"
+                                                                "\t 3) R (s-1; default: 21.1 s-1) \n"
+                                                                "e.g. --qMTconstraint_PARX 0.0158,10.0e-6,21.1")
     args                = parser.parse_args()
     MT_in_niipaths      = [','.join(args.MT)] # ensure it's a comma-separated list
     VFA_in_niipaths     = [','.join(args.VFA)] # ensure it's a comma-separated list
@@ -135,9 +135,9 @@ def main():
                                                 R      = float(args.qMTconstraint_PARX[2]))         
     else:
         print('--qMTconstraint_PARX not set, setting to default values \n')
-        qMTcontrainst_parx = qMTcontraint_NT(   R1fT2f = 0.0152, 
-                                                T2r    = 10.1e-6,
-                                                R      = 19.4)  
+        qMTcontrainst_parx = qMTcontraint_NT(   R1fT2f = 0.0158, 
+                                                T2r    = 10.0e-6,
+                                                R      = 21.1)  
     print('Summary of input MTw/MT0 sequence parameters:')
     print('\t Saturation flip angle: {:.1f} deg'.format(MTw_parx.FAsat))
     print('\t Saturation pulse off-resonance frenquency: {:.1f} Hz'.format(MTw_parx.delta_f))

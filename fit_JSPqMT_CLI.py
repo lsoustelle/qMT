@@ -383,7 +383,7 @@ def func_prepare_qMTparx(B1_data,B0_data):
         print('--- Computing G(delta_f) for all voxels (B0 corrected) ...')
         T2r_array       = numpy.full(B0_data.shape[0],qMTcontrainst_parx.T2r)[numpy.newaxis,:].T
         delta_f_array   = numpy.full(B0_data.shape[0],MTw_parx.delta_f)[numpy.newaxis,:].T
-        list_iterable   = numpy.hstack((T2r_array,delta_f_corr,B0_data))
+        list_iterable   = numpy.hstack((T2r_array,delta_f_array,B0_data))
         start_time = time.time()
         with multiprocessing.Pool(NWORKERS) as pool:
             MTw_SAT_G  = pool.starmap(func_computeG_SuperLorentzian,list_iterable)

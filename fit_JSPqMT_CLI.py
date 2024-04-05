@@ -15,6 +15,7 @@ import multiprocessing
 import argparse; from argparse import RawTextHelpFormatter
 import subprocess
 import collections
+import warnings
 
 def main():
     global gamma; gamma = 267.513 * 1e6 # rad/s/T
@@ -294,7 +295,7 @@ def main():
     yData    = numpy.zeros((MTw_data.shape[0],len(VFA_data)))
     for ii in range(len(VFA_data)):
         yData[:,ii] = VFA_data[ii][mask_idx[0],mask_idx[1],mask_idx[2]][numpy.newaxis,:].T.ravel()
-    yData = numpy.divide(numpy.concatenate((yData,MTw_data),axis=1), MT0_data, out=numpy.zeros(ref_nii.shape, dtype=float), where=MT0_data>0)
+    yData = numpy.divide(numpy.concatenate((yData,MTw_data),axis=1), MT0_data, where=MT0_data>0)
     list_iterable = [*zip(xData,yData)]
 
 
@@ -317,7 +318,7 @@ def main():
     R1f_map     = numpy.full(ref_nii.shape[0:3],0,dtype=float)
     R1f_map[mask_idx[0],mask_idx[1],mask_idx[2]] = [a_tup[0] for a_tup in res] # get specific array elements from tuple in a tuple list
     ones_map    = numpy.full(ref_nii.shape[0:3],1,dtype=float)
-    T1f_map     = numpy.divide(ones_map, R1f_map, out=numpy.zeros(ref_nii.shape, dtype=float), where=R1f_map>0)
+    T1f_map     = numpy.divide(ones_map, R1f_map, where=R1f_map>0)
     new_img     = nibabel.Nifti1Image(T1f_map, ref_nii.affine, ref_nii.header)
     nibabel.save(new_img, T1f_out_niipath)
     if args.R1f is not None:
@@ -574,17 +575,23 @@ def func_JSPqMT(xData,R1f,M0b):
         Mss = Mss/Mss[-1]
         Mxy_VFA[ii] = Mss[2]*numpy.sin(VFA_ROFA[ii])
 
-    return numpy.concatenate((Mxy_VFA,[Mxy_MTw]),axis=0)/Mxy_MT0 # return Mxy/MT0 array
+    return numpy.divide(numpy.concatenate((Mxy_VFA,[Mxy_MTw]),axis=0), Mxy_MT0, where=Mxy_MT0>0) # return Mxy/MT0 array
     
 def fit_JSPqMT_lsq(xData,yData):
-    try:
-        popt, pcov = scipy.optimize.curve_fit(func_JSPqMT,xData,yData,
-                                     p0=[1.0, 0.1], bounds=([0.05, 0],[3.0, 0.5]), 
-                                     method='trf', maxfev=400,
-                                     xtol=1e-6,ftol=1e-6)
-        return popt
-    except:
-        return numpy.array([0,0])
+    with warnings.catch_warnings():
+        warnings.filterwarnings('error', category=RuntimeWarning)
+        try:
+            popt, pcov = scipy.optimize.curve_fit(func_JSPqMT,xData,yData,
+                                         p0=[1.0, 0.1], bounds=([0.05, 0],[3.0, 0.5]), 
+                                         method='trf', maxfev=400,
+                                         xtol=1e-6,ftol=1e-6)
+            return popt
+        except RuntimeError:
+            return numpy.array([0, 0])
+        except RuntimeWarning:
+            return numpy.array([0, 0])
+        except Exception:
+            return numpy.array([0, 0])
     
     
 #### main

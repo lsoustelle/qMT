@@ -43,7 +43,8 @@ def main():
     parser.add_argument('MT',           nargs="+",help="Input couple MT0/MTw NIfTI path(s) (comma-separated for 3D, single path for 4D)")
     parser.add_argument('VFA',          nargs="+",help="Input VFA NIfTI path(s) (comma-separated for 3D, single path for 4D)")
     parser.add_argument('MPF',          help="Output MPF NIfTI path")
-    parser.add_argument('R1f',          help="Output R1f NIfTI path")
+    parser.add_argument('T1f',          help="Output T1f NIfTI path")
+    parser.add_argument('--R1f',        help="Output R1f NIfTI path (optional)")
     parser.add_argument('--MTw_TIMINGS', required=True, help="Sequence timings in ms (comma-separated), in this order:   \n"
                                                                 "\t 1) Saturation pulse duration (ms) \n"
                                                                 "\t 2) Interdelay between Saturation pulse and Readout pulse (ms) \n"
@@ -79,7 +80,8 @@ def main():
     MT_in_niipaths      = [','.join(args.MT)] # ensure it's a comma-separated list
     VFA_in_niipaths     = [','.join(args.VFA)] # ensure it's a comma-separated list
     MPF_out_niipaths    = args.MPF # ensure it's a comma-separated list
-    R1f_out_niipaths    = args.R1f # ensure it's a comma-separated list
+    T1f_out_niipath     = args.T1f
+    R1f_out_niipath     = args.R1f
     B1_in_niipath       = args.B1
     B0_in_niipath       = args.B0
     mask_in_niipath     = args.mask
@@ -292,7 +294,7 @@ def main():
     yData    = numpy.zeros((MTw_data.shape[0],len(VFA_data)))
     for ii in range(len(VFA_data)):
         yData[:,ii] = VFA_data[ii][mask_idx[0],mask_idx[1],mask_idx[2]][numpy.newaxis,:].T.ravel()
-    yData   = numpy.concatenate((yData,MTw_data),axis=1) / MT0_data
+    yData = numpy.divide(numpy.concatenate((yData,MTw_data),axis=1), MT0_data, out=numpy.zeros(ref_nii.shape, dtype=float), where=MT0_data>0)
     list_iterable = [*zip(xData,yData)]
 
 
@@ -309,13 +311,18 @@ def main():
     delay = time.time()
     print("---- Done in {} seconds ----".format(delay - start_time))
     
-    # store MPF & R1f + save nifti
+    # store MPF & T1f/R1f + save nifti
     ref_nii = nibabel.load(MT_in_niipaths[0])
 
-    R1f_map = numpy.full(ref_nii.shape[0:3],0,dtype=float)
+    R1f_map     = numpy.full(ref_nii.shape[0:3],0,dtype=float)
     R1f_map[mask_idx[0],mask_idx[1],mask_idx[2]] = [a_tup[0] for a_tup in res] # get specific array elements from tuple in a tuple list
-    new_img = nibabel.Nifti1Image(R1f_map, ref_nii.affine, ref_nii.header)
-    nibabel.save(new_img, R1f_out_niipaths)
+    ones_map    = numpy.full(ref_nii.shape[0:3],1,dtype=float)
+    T1f_map     = numpy.divide(ones_map, R1f_map, out=numpy.zeros(ref_nii.shape, dtype=float), where=R1f_map>0)
+    new_img     = nibabel.Nifti1Image(T1f_map, ref_nii.affine, ref_nii.header)
+    nibabel.save(new_img, T1f_out_niipath)
+    if args.R1f is not None:
+        new_img = nibabel.Nifti1Image(R1f_map, ref_nii.affine, ref_nii.header)
+        nibabel.save(new_img, R1f_out_niipath)
 
     MPF_map = numpy.full(ref_nii.shape[0:3],0,dtype=float)
     MPF_map[mask_idx[0],mask_idx[1],mask_idx[2]] = [a_tup[1] for a_tup in res] 
@@ -577,7 +584,7 @@ def fit_JSPqMT_lsq(xData,yData):
                                      xtol=1e-6,ftol=1e-6)
         return popt
     except:
-        return 0
+        return numpy.array([0,0])
     
     
 #### main

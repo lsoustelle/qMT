@@ -152,7 +152,7 @@ def main():
         for ii in range(len(VFA_in_niipaths)):
             VFA_data.append(nibabel.load(VFA_in_niipaths[ii]).get_fdata())
     if len(VFA_data) == 2 and args.FitType == 'NLS':
-        args.FitType == 'LLS'
+        args.FitType = 'LLS'
         print('2-points VFA case: LLS fitting')
     
     # get B1 data

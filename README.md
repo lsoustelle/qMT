@@ -8,7 +8,11 @@ A collection of command-line Python-based scripts for voxel-wise computation of:
 
 Installation
 -----------
-* A simple conda environment should do the trick: `conda create -n "qMT" -c conda-forge numpy scipy nibabel -y`
+* A simple conda environment should do the trick: 
+```
+conda create -n "qMT" -c conda-forge numpy scipy nibabel -y
+conda activate qMT
+```
 * Note that the package is intended to work with NIfTI files; please consider conversion packages such as [dcm2niix](https://github.com/rordenlab/dcm2niix) or [DICOMIFIER](https://github.com/lamyj/dicomifier).
 
 MRI Sequences

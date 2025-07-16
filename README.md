@@ -6,10 +6,15 @@ A collection of command-line Python-based scripts for voxel-wise computation of:
 * MPF maps using the original Single-Point MPF method [3] (*fit_SPqMT_CLI.py*).
 * MTsat maps as described in [4] (*fit_SPqMT_CLI.py*).
 
+Installation
+-----------
+* A simple conda environment should do the trick: `conda create -n "qMT" -c conda-forge numpy scipy nibabel -y`
+* Note that the package is intended to work with NIfTI files; please consider conversion packages such as [dcm2niix](https://github.com/rordenlab/dcm2niix) or [DICOMIFIER](https://github.com/lamyj/dicomifier).
+
 MRI Sequences
 -------------
-* **Siemens users**: two prototype sequences (__greMT__ [VB17/VE11C/VE11E/VE12U/XA20/XA30/XA31] & __vibeMT__ [XA20/XA30/XA31/XA50]) are available on the Siemens C<sup>2</sup>P Exchange platform (teamplay).
-* **Bruker users**: a prototype SPGR sequence is available upon request [@LucasSoustelle](https://twitter.com/LucasSoustelle).
+* **Siemens users**: a prototype sequence (__vibeMT__) is available on Siemens' C<sup>2</sup>P Exchange platform (teamplay).
+* **Bruker users**: a prototype SPGR sequence is available upon [request](https://crmbm.univ-amu.fr/resources/mt-prepared-spgr-sequence/).
 
 The user interfaces for both constructor match the specific parameters to be passed in the *fit_JSPqMT_CLI.py* and *fit_SPqMT_CLI.py* scripts.
 
@@ -21,16 +26,9 @@ For original SP-MPF computation
 * As in Ref. [5], a synthetic MT reference can be computed from a 2-points VFA protocol (*synt_SPGR_CLI.py*).
 * In *fit_SPqMT_CLI.py*, two presets of constraint qMT parameters are proposed for adult human brain at 3T [3] and adult mouse brain at 7T [6].
 
-Dependencies
-------------
-* The package is intended to have NIfTI files as inputs; please consider conversion package such as [dcm2niix](https://github.com/rordenlab/dcm2niix) or [DICOMIFIER](https://github.com/lamyj/dicomifier).
-* Specific Python packages: numpy, scipy and nibabel.
-    - Tested on Python 3.8.2 (Windows 10, Ubuntu 20.04 & 18.04), with numpy-1.19.4, scipy-1.5.4 and nibabel-3.2.0
-    - For computational efficiency, it is strongly advised to have a numpy package compiled with MKL (native in conda default channels)
-
 Usage
 -----
-#### Example for joint Single-Point qMT:
+#### Example for Joint Single-Point qMT:
 ```
 python3 fit_JSPqMT_CLI.py  \
             MT0.nii.gz,MTw.nii.gz \
@@ -39,8 +37,8 @@ python3 fit_JSPqMT_CLI.py  \
             R1f_JSPqMT.nii.gz \
             --MTw_TIMINGS 12.0,2.1,1.0,30.0 \
             --VFA_TIMINGS 1.0,30.0 \
-            --VFA_PARX 6,10,25,50,1 \
-            --MTw_PARX 560,4000.0,0.0,1,10,1 \
+            --VFA_PARX 6.0,10.0,25.0,Hann \
+            --MTw_PARX 10.0,Hann,560.0,4000.0,Hann-Sine \
             --B1 B1_map.nii.gz \
             --mask mask.nii.gz \
             --nworkers 20

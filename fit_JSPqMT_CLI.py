@@ -5,6 +5,12 @@
 
 import sys
 import os
+# prevent multi-threading trigger of numpy (see https://numpy.org/devdocs/reference/global_state.html)
+os.environ["OMP_NUM_THREADS"] = "1" 
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
 import numpy
 import nibabel
 import scipy.optimize
@@ -25,12 +31,9 @@ def main():
     ## parse arguments
     text_description = "Fast quantitative MT joint fitting for R1f and MPF mapping from a VFA & {MTw;MT0} protocol.\
                         \nNotes: \
-                        \n\t1) The model used for joint fitting is described in Ref. [1].\
-                        \n\t2) The implemented saturation pulse is gaussian shaped with a user-defined FWHM.\
-                        \n\tA Hann apodization is made possible, and setting the FWHM to 0.0 Hz yields a pure Hann-shaped pulse.\
-                        \n\t  - Siemens' users: parameters are straightforwardly the same as in the Special Card interface from the greMT/vibeMT C2P sequences.\
-                        \n\t  - Bruker's users: \"gauss\" pulse is a pure Gauss pulse with an FWHM of 218 Hz (differs from ParaVision's UI value).\
-                        \n\t3) As in Yarnykh's original paper about SP-qMT [2], it is considered that R1f = R1b = R1.\
+                        \n\t1) The model used for joint fitting is described in Ref. [1], an expansion of the Single‐Point qMT introduced in [2].\
+                        \n\t2) Parameters are straightforwardly the same as i) in the Special Card interface from the Siemens' vibeMT C2P sequences, and ii) in the MT preparation card from the MT_SPGR Bruker's sequence.\
+                        \n\t3) The conventions T1f = T1b = T1 (=1/R1) and M0f + M0b = 1.0 are adopted.\
                         \n\t4) B1 correction is strongly advised [3].\
                         \n\t5) B0 correction considerations:\
                         \n\t  - Readout pulses: dB0 is assumed to have no effect regarding on-resonance saturation or resulting flip angle.\
@@ -57,26 +60,27 @@ def main():
                                                                 "\t 2) Sequence Time-to-Repetition (TR; ms) \n"
                                                                 "e.g. --VFA_TIMINGS 1.0,30.0")
     parser.add_argument('--MTw_PARX', required=True,  help="Saturation parameters (comma-separated), in this order:   \n"
-                                                                "\t 1) Saturation pulse flip angle (deg) \n"
-                                                                "\t 2) Saturation pulse off-resonance frequency (Hz) \n"
-                                                                "\t 3) Gaussian saturation pulse FWHM (Hz) \n"
-                                                                "\t 4) Hann apodization (boolean; default: 1) \n" 
-                                                                "\t 5) Readout flip angle of MTw/MT0 (deg; single common value) \n"
-                                                                "\t 6) Readout pulse shape (Hann: 1, Rect.: 2; default: 1) \n" 
-                                                                "e.g. --MTw_PARX 560,4000.0,100.0,1,10,1")
+                                                                "\t 1) Readout flip angle of MT0/MTw (deg; single common value) \n"
+                                                                "\t 2) Readout pulse shape (Hann, BP) \n" 
+                                                                "\t 3) Saturation pulse flip angle (deg) \n"
+                                                                "\t 4) Saturation pulse off-resonance frequency (Hz) \n"
+                                                                "\t 5) Saturation pulse shape (Hann-Sine, GaussHann-Sine, Gauss-Sine) \n" 
+                                                                "\t 6) Gaussian saturation pulse FWHM (Hz; not used if purely Hann-Sine-shaped) \n"
+                                                                "e.g. --MTw_PARX 10.0,BP,560.0,4000.0,Hann-Sine")
     parser.add_argument('--VFA_PARX', required=True,  help="Readout pulse parameters of experiments (comma-separated), in this order:   \n"
                                                                 "\t 1) Readout flip angles [VFA1, VFA2, ..., VFAn] (deg; same order as in provided VFA volume(s)) \n"
-                                                                "\t 2) Readout pulse shape (Hann: 1, Rect.: 2; default: 1) \n" 
-                                                                "e.g. --VFA_PARX 6,10,25,1")
+                                                                "\t 2) Readout pulse shape (Hann, BP) \n" 
+                                                                "e.g. --VFA_PARX 6,10,25,BP")
     parser.add_argument('--B1',                 nargs="?",help="Input normalized B1 map NIfTI path (strongly advised)")
     parser.add_argument('--B0',                 nargs="?",help="Input B0 map NIfTI path (in Hz; computation time is much longer)")
     parser.add_argument('--mask',               nargs="?",help="Input Mask binary NIfTI path")
     parser.add_argument('--nworkers',           nargs="?",type=int, default=1, help="Use this for multi-threading acceleration (default: 1)")
     parser.add_argument('--qMTconstraint_PARX',  help="Constained parameters for SP-qMT estimation (comma-separated) in this order:\n"  
                                                                 "\t 1) R1fT2f (default: 0.0158) \n"
-                                                                "\t 2) T2r (s; default: 10.0e-6 s) \n"
+                                                                "\t 2) T2b (s; default: 10.0e-6 s) \n"
                                                                 "\t 3) R (s-1; default: 21.1 s-1) \n"
                                                                 "e.g. --qMTconstraint_PARX 0.0158,10.0e-6,21.1")
+
     args                = parser.parse_args()
     MT_in_niipaths      = [','.join(args.MT)] # ensure it's a comma-separated list
     VFA_in_niipaths     = [','.join(args.VFA)] # ensure it's a comma-separated list
@@ -96,21 +100,23 @@ def main():
     print('--------------------------------------------------')
     print('')
     
-    MTw_NT                  = collections.namedtuple('MTw_NT','FAsat delta_f FWHM bHannApo ROFA ROdur ROshape Tm Ts TR')
+    MTw_NT                  = collections.namedtuple('MTw_NT','FAsat delta_f ROFA ROshape MTshape FWHM ROdur Tm Ts TR')
     args.MTw_TIMINGS        = args.MTw_TIMINGS.split(',')
     args.MTw_PARX           = args.MTw_PARX.split(',')
     if len(args.MTw_TIMINGS) != 4: 
         parser.error('Wrong amount of Sequence Parameters (--MTw_TIMINGS \
                          --- expected 4, found {})'.format(len(args.MTw_TIMINGS)))
-    if len(args.MTw_PARX) != 6: 
+    if len(args.MTw_PARX) < 5: 
         parser.error('Wrong amount of Saturation/Readout Parameters (--MTw_PARX \
-                         --- expected 6, found {})'.format(len(args.MTw_PARX)))
-    MTw_parx = MTw_NT(  FAsat      = float(args.MTw_PARX[0]), 
-                        delta_f    = float(args.MTw_PARX[1]),
-                        FWHM       = float(args.MTw_PARX[2]),
-                        bHannApo   = bool(int(args.MTw_PARX[3])),
-                        ROFA       = float(args.MTw_PARX[4]),
-                        ROshape    = int(args.MTw_PARX[5]),
+                         --- expected 5 or 6, found {})'.format(len(args.MTw_PARX)))
+    if args.MTw_PARX[4] in ("GaussHann-Sine", "Gauss-Sine") and len(args.MTw_PARX) < 6:
+        parser.error('GaussHann-Sine or Gauss-Sine saturation pulse set, but no FWHM found')
+    MTw_parx = MTw_NT(  ROFA       = float(args.MTw_PARX[0]),
+                        ROshape    = str(args.MTw_PARX[1]),
+                        FAsat      = float(args.MTw_PARX[2]), 
+                        delta_f    = float(args.MTw_PARX[3]),
+                        MTshape    = str(args.MTw_PARX[4]),
+                        FWHM       = float(args.MTw_PARX[5]) if len(args.MTw_PARX) > 5 else None,
                         Tm         = float(args.MTw_TIMINGS[0])*1e-3, # convert to sec
                         Ts         = float(args.MTw_TIMINGS[1])*1e-3,
                         ROdur      = float(args.MTw_TIMINGS[2])*1e-3,
@@ -123,35 +129,34 @@ def main():
         parser.error('Wrong amount of Sequence Parameters (--VFA_TIMINGS \
                          --- expected 2, found {})'.format(len(args.VFA_TIMINGS)))
     VFA_parx = VFA_NT(  ROFA       = numpy.array(args.VFA_PARX[:-1]).astype(numpy.float64), 
-                        ROshape    = int(args.VFA_PARX[-1]),
+                        ROshape    = str(args.VFA_PARX[-1]),
                         ROdur      = float(args.VFA_TIMINGS[0])*1e-3, # convert to sec
                         TR         = float(args.VFA_TIMINGS[1])*1e-3)
 
-    qMTcontraint_NT = collections.namedtuple('qMTcontraint_NT', 'R1fT2f T2r R')
+    qMTcontraint_NT = collections.namedtuple('qMTcontraint_NT', 'R1fT2f T2b R')
     if args.qMTconstraint_PARX is not None:   
         args.qMTconstraint_PARX  = args.qMTconstraint_PARX.split(',')
         if len(args.qMTconstraint_PARX) != 3: 
             parser.error('Wrong amount of constraint qMT parameters (qMTconstraint_PARX \
                              --- expected 3, found {})'.format(len(args.qMTconstraint_PARX)))
         qMTcontrainst_parx = qMTcontraint_NT(   R1fT2f = float(args.qMTconstraint_PARX[0]), 
-                                                T2r    = float(args.qMTconstraint_PARX[1]),
+                                                T2b    = float(args.qMTconstraint_PARX[1]),
                                                 R      = float(args.qMTconstraint_PARX[2]))         
     else:
         print('--qMTconstraint_PARX not set, setting to default values \n')
         qMTcontrainst_parx = qMTcontraint_NT(   R1fT2f = 0.0158, 
-                                                T2r    = 10.0e-6,
+                                                T2b    = 10.0e-6,
                                                 R      = 21.1)  
+
     print('Summary of input MTw/MT0 sequence parameters:')
     print('\t Saturation flip angle: {:.1f} deg'.format(MTw_parx.FAsat))
     print('\t Saturation pulse off-resonance frenquency: {:.1f} Hz'.format(MTw_parx.delta_f))
-    print('\t Gaussian pulse FWHM: {:.1f} Hz'.format(MTw_parx.FWHM))
-    print('\t Hann apodization: {}'.format(MTw_parx.bHannApo))
+    print('\t Saturation pulse shape: {}'.format(MTw_parx.MTshape))
+    if len(args.MTw_PARX) > 5:
+        print('\t Gaussian pulse FWHM: {:.1f} Hz'.format(MTw_parx.FWHM))
     print('\t Readout flip angle: {:.1f} deg'.format(MTw_parx.ROFA))
     print('\t Readout pulse duration: {:.1f} ms'.format(MTw_parx.ROdur*1e3))
-    if MTw_parx.ROshape == 1:
-        print('\t Readout pulse shape: Hann')
-    else:
-        print('\t Readout pulse shape: Rectangular')
+    print('\t Readout pulse shape: {}'.format(MTw_parx.ROshape))
     print('\t Saturation pulse duration: {:.1f} ms'.format(MTw_parx.Tm*1e3))
     print('\t Interdelay saturation pulse <--> Readout pulse: {:.2f} ms'.format(MTw_parx.Ts*1e3))
     print('\t Sequence Time-to-Repetition: {:.1f} ms'.format(MTw_parx.TR*1e3))
@@ -159,35 +164,39 @@ def main():
     print('Summary of input VFA sequence parameters:')
     print('\t Readout flip angles: [' + ', '.join('{:.1f}'.format(v) for v in VFA_parx.ROFA) + '] deg')
     print('\t Readout pulse duration: {:.1f} ms'.format(VFA_parx.ROdur*1e3))
-    if VFA_parx.ROshape == 1:
-        print('\t Readout pulse shape: Hann')
-    else:
-        print('\t Readout pulse shape: Rectangular')
+    print('\t Readout pulse shape: {}'.format(VFA_parx.ROshape))
     print('\t Sequence Time-to-Repetition: {:.1f} ms'.format(VFA_parx.TR*1e3))
     print('')
     print('Summary of constraint qMT parameters:')
     print('\t R1fT2f: {:.4f}'.format(qMTcontrainst_parx.R1fT2f))
-    print('\t T2r:\t {:.1f} us'.format(qMTcontrainst_parx.T2r*1e6))
+    print('\t T2b:\t {:.1f} us'.format(qMTcontrainst_parx.T2b*1e6))
     print('\t R:\t {:.1f} s-1'.format(qMTcontrainst_parx.R))
     print('')
     
-    # last check before continuing
+    # last check before going in
     for field in qMTcontrainst_parx._fields:
-        if(getattr(qMTcontrainst_parx, field) < 0):
+        if getattr(qMTcontrainst_parx, field) < 0:
             parser.error('All qMTcontrainst_parx values should be positive')
     for field in VFA_parx._fields:
-        if isinstance(getattr(VFA_parx, field), numpy.ndarray): # special treatment for first element (numpy array)
-            if any(X < 0 for X in getattr(VFA_parx, field)):
-                parser.error('All VFA parameter values should be positive')
-        elif (getattr(VFA_parx, field) < 0):
-            parser.error('All VFA parameter values should be positive')
+        # skip the pulse shape parameter (string)
+        if isinstance(getattr(VFA_parx, field), str): continue
+        # special treatment for element (numpy array of FA [ROFA])
+        if isinstance(getattr(VFA_parx, field), numpy.ndarray): 
+            if any(X <= 0 for X in getattr(VFA_parx, field)):
+                parser.error('All VFA provided numerical values should be strictly positive')
+        elif getattr(VFA_parx, field) <= 0:
+            parser.error('All VFA provided numerical values should be strictly positive')
     for field in MTw_parx._fields:
-        if(getattr(MTw_parx, field) < 0):
-            parser.error('All MTw parameter values should be positive')
-    if MTw_parx.ROshape < 1 or MTw_parx.ROshape > 2:
-        parser.error('Unrecognized MTw Readout pulse shape (should be 1 or 2)')
-    if VFA_parx.ROshape < 1 or VFA_parx.ROshape > 2:
-        parser.error('Unrecognized VFA Readout pulse shape (should be 1 or 2)')
+        # skip the pulse shape parameter (string) & potentially undefined FWHM (= None)
+        if isinstance(getattr(MTw_parx, field), str) or getattr(MTw_parx, field) is None: continue
+        if getattr(MTw_parx, field) <= 0:
+            parser.error('All MTw provided numerical values should be strictly positive')
+    if MTw_parx.ROshape not in ("Hann", "BP"):
+        parser.error('Unrecognized MTw readout pulse shape (allowed: "Hann" or "BP")')
+    if MTw_parx.MTshape not in ("Hann-Sine", "GaussHann-Sine", "Gauss-Sine"):
+        parser.error('Unrecognized MT saturation pulse shape (allowed: "Hann-Sine", "GaussHann-Sine" or "Gauss-Sine")')
+    if VFA_parx.ROshape not in ("Hann", "BP"):
+        parser.error('Unrecognized VFA readout pulse shape (allowed: "Hann" or "BP")')
 
     #### check input data
     # check MT0/MTw data
@@ -195,14 +204,14 @@ def main():
         FLAG_isqMT4D = 1
         print('MT0/MTw provided volume (4D) exist')
     else:
-        FLAG_isqMT4D    = 0
+        FLAG_isqMT4D = 0
         MT_in_niipaths = MT_in_niipaths[0].split(',')
         for vol_niipath in MT_in_niipaths:
             if not os.path.isfile(vol_niipath):
                 parser.error('Volume {} does not exist'.format(vol_niipath))
         print('MT0/MTw provided volumes (3D) exist')
         
-    # check T1 map
+    # check VFA volumes
     if os.path.isfile(VFA_in_niipaths[0]) and len(nibabel.load(VFA_in_niipaths[0]).shape) == 4:
         FLAG_isVFA4D    = 1
         N_VFA_VOL       = nibabel.load(VFA_in_niipaths[0]).shape[3]
@@ -372,26 +381,25 @@ def func_prepare_qMTparx(B1_data,B0_data):
     
     print('Preparing qMT quantities ...')
     ### VFA
-    if VFA_parx.ROshape == 1:
+    if VFA_parx.ROshape == "Hann":
         VFA_RO_AI,VFA_RO_PI   = 0.5,0.375 # Hann-shaped
-    elif VFA_parx.ROshape == 2:
+    elif VFA_parx.ROshape == "BP":
         VFA_RO_AI,VFA_RO_PI   = 1.0,1.0 # Rectangular-shaped
     VFA_RO_B1peak_nom  = VFA_parx.ROFA*(numpy.pi/180) / (gamma*VFA_RO_AI*VFA_parx.ROdur)
     VFA_RO_w1RMS_nom   = gamma*VFA_RO_B1peak_nom*numpy.sqrt(VFA_RO_PI)    
-    VFA_RO_G           = func_computeG_SphericalLineshape(qMTcontrainst_parx.T2r,0) # assume no dB0 impact
+    VFA_RO_G           = func_computeG_SphericalLineshape(qMTcontrainst_parx.T2b,0) # assume no dB0 impact
     VFA_RO_G           = numpy.tile(VFA_RO_G,B1_data.shape[0])[numpy.newaxis,:].T
-
 
     ### MTw/MT0 
     # SAT Pulse AI/PI & w1RMS nominal
-    MTw_SAT_AI,MTw_SAT_PI   = func_AI_PI_ShapedGauss(MTw_parx.Tm,MTw_parx.FWHM,MTw_parx.bHannApo)
+    MTw_SAT_AI,MTw_SAT_PI   = func_computeAIPI_SatPulse(MTw_parx.Tm,MTw_parx.MTshape,MTw_parx.FWHM)
     MTw_SAT_B1peak_nom      = MTw_parx.FAsat*(numpy.pi/180) / (gamma*MTw_SAT_AI*MTw_parx.Tm)
     MTw_SAT_w1RMS_nom       = gamma*MTw_SAT_B1peak_nom*numpy.sqrt(MTw_SAT_PI)
     if any(B0_data != 0.0): # compute G for each voxel
         print('--- Computing G(delta_f) for all voxels (B0 corrected) ...')
-        T2r_array       = numpy.full(B0_data.shape[0],qMTcontrainst_parx.T2r)[numpy.newaxis,:].T
+        T2b_array       = numpy.full(B0_data.shape[0],qMTcontrainst_parx.T2b)[numpy.newaxis,:].T
         delta_f_array   = numpy.full(B0_data.shape[0],MTw_parx.delta_f)[numpy.newaxis,:].T
-        list_iterable   = numpy.hstack((T2r_array,delta_f_array,B0_data))
+        list_iterable   = numpy.hstack((T2b_array,delta_f_array,B0_data))
         start_time = time.time()
         with multiprocessing.Pool(NWORKERS) as pool:
             MTw_SAT_G  = pool.starmap(func_computeG_SuperLorentzian,list_iterable)
@@ -399,19 +407,18 @@ def func_prepare_qMTparx(B1_data,B0_data):
         print("--- ... Done in {} seconds".format(delay - start_time))
         MTw_SAT_G  = numpy.array(MTw_SAT_G)[numpy.newaxis,:].T
     else: # same G for all voxels
-        MTw_SAT_G = func_computeG_SuperLorentzian(qMTcontrainst_parx.T2r,MTw_parx.delta_f,0)
+        MTw_SAT_G = func_computeG_SuperLorentzian(qMTcontrainst_parx.T2b,MTw_parx.delta_f,0)
         MTw_SAT_G = numpy.tile(MTw_SAT_G,B1_data.shape[0])[numpy.newaxis,:].T
 
     # RO Pulse AI/PI & w1RMS nominal
-    if MTw_parx.ROshape == 1:
+    if MTw_parx.ROshape == "Hann":
         MTw_RO_AI,MTw_RO_PI   = 0.5,0.375 # Hann-shaped
-    elif MTw_parx.ROshape == 2:
+    elif MTw_parx.ROshape == "BP":
         MTw_RO_AI,MTw_RO_PI   = 1.0,1.0 # Rectangular-shaped
     MTw_RO_B1peak_nom  = MTw_parx.ROFA*(numpy.pi/180) / (gamma*MTw_RO_AI*MTw_parx.ROdur)
     MTw_RO_w1RMS_nom   = gamma*MTw_RO_B1peak_nom*numpy.sqrt(MTw_RO_PI)   
-    MTw_RO_G           = func_computeG_SphericalLineshape(qMTcontrainst_parx.T2r,0.0) # assume no dB0 impact
+    MTw_RO_G           = func_computeG_SphericalLineshape(qMTcontrainst_parx.T2b,0.0) # assume no dB0 impact
     MTw_RO_G           = numpy.tile(MTw_RO_G,B1_data.shape[0])[numpy.newaxis,:].T    
-
 
     ### Wb/FA arrays
     MTw_SAT_w1RMS_array = MTw_SAT_w1RMS_nom * B1_data
@@ -431,47 +438,46 @@ def func_prepare_qMTparx(B1_data,B0_data):
     return xData
     
 
-def func_AI_PI_ShapedGauss(tau,BW,boolHannApo):
-    if boolHannApo and BW != 0: # Gauss-Hann
+def func_computeAIPI_SatPulse(tau,shape,BW):
+    if shape == "Hann-Sine": # pure Hann
+        satPulse   = lambda t: ( 0.5*(1 - numpy.cos((2*numpy.pi*t)/tau)) )
+        satPulseSq = lambda t: ( 0.5*(1 - numpy.cos((2*numpy.pi*t)/tau)) )**2
+    elif shape == "GaussHann-Sine": # Gauss-Hann
         sigma      = numpy.sqrt(2*numpy.log(2) / (numpy.pi*BW)**2)
         satPulse   = lambda t: ( numpy.exp(-((t-(tau/2))**2)/(2*sigma**2)) * 0.5*(1 - numpy.cos((2*numpy.pi*t)/tau)) )
         satPulseSq = lambda t: ( numpy.exp(-((t-(tau/2))**2)/(2*sigma**2)) * 0.5*(1 - numpy.cos((2*numpy.pi*t)/tau)) )**2
-    if boolHannApo and BW == 0: # pure Hann
-        satPulse   = lambda t: ( 0.5*(1 - numpy.cos((2*numpy.pi*t)/tau)) )
-        satPulseSq = lambda t: ( 0.5*(1 - numpy.cos((2*numpy.pi*t)/tau)) )**2
-    else: # pure Gauss
+    elif shape == "Gauss-Sine": # pure Gauss
         sigma      = numpy.sqrt(2*numpy.log(2) / (numpy.pi*BW)**2)
         satPulse   = lambda t: ( numpy.exp(-((t-(tau/2))**2)/(2*sigma**2)) )
         satPulseSq = lambda t: ( numpy.exp(-((t-(tau/2))**2)/(2*sigma**2)) )**2
     integ   = scipy.integrate.quad(satPulse,0,tau)
     integSq = scipy.integrate.quad(satPulseSq,0,tau)
-    
     return integ[0]/tau, integSq[0]/tau ## normalized AI, PI
     
-def func_computeG_SuperLorentzian(T2r,delta_f,dB0): # super-lorentzian lineshape
+def func_computeG_SuperLorentzian(T2b,delta_f,dB0): # super-lorentzian lineshape
     if dB0 == 0.0:
-        F = lambda x: (T2r/numpy.abs(3*x**2-1)) * \
-                        numpy.exp(-2*((2*numpy.pi * delta_f * T2r)/(3*x**2-1))**2)
+        F = lambda x: (T2b/numpy.abs(3*x**2-1)) * \
+                        numpy.exp(-2*((2*numpy.pi * delta_f * T2b)/(3*x**2-1))**2)
         INTEG_RES = scipy.integrate.quad(F,0,1)
         return numpy.sqrt(2/numpy.pi)*INTEG_RES[0]
     else:
-        Fp = lambda x: (T2r/numpy.abs(3*x**2-1)) * \
-                        numpy.exp(-2*((2*numpy.pi * (delta_f+dB0) * T2r)/(3*x**2-1))**2)
-        Fm = lambda x: (T2r/numpy.abs(3*x**2-1)) * \
-                        numpy.exp(-2*((2*numpy.pi * (-delta_f+dB0) * T2r)/(3*x**2-1))**2)
+        Fp = lambda x: (T2b/numpy.abs(3*x**2-1)) * \
+                        numpy.exp(-2*((2*numpy.pi * (delta_f+dB0) * T2b)/(3*x**2-1))**2)
+        Fm = lambda x: (T2b/numpy.abs(3*x**2-1)) * \
+                        numpy.exp(-2*((2*numpy.pi * (-delta_f+dB0) * T2b)/(3*x**2-1))**2)
         INTEG_RESp = scipy.integrate.quad(Fp,0,1)
         INTEG_RESm = scipy.integrate.quad(Fm,0,1)
         return numpy.sqrt(2/numpy.pi)*(INTEG_RESp[0]+INTEG_RESm[0])/2 # average of G(df+dB0) & G(-df+dB0)
     
 
-def func_computeG_SphericalLineshape(T2r,delta_f):
+def func_computeG_SphericalLineshape(T2b,delta_f):
     # Function for Spherical lineshape integration
     # include neighboors contribution to remove singularity at the magic angle
     # see Pampel et al. NeuroImage 114 (2015) 136–146
     T2neighboors    = 1/31.4  # T2neighboors -> +Inf virtually mean no effect of T2neighboors
     def SphericalLineshape(theta):
-        T2rSph  = 2*T2r/numpy.abs(3*numpy.cos(theta)**2-1)
-        T2eff   = 1/numpy.sqrt(1/(T2rSph)**2+1/(T2neighboors)**2)
+        T2bSph  = 2*T2b/numpy.abs(3*numpy.cos(theta)**2-1)
+        T2eff   = 1/numpy.sqrt(1/(T2bSph)**2+1/(T2neighboors)**2)
         return numpy.sin(theta)*T2eff*numpy.exp(-1/2*(2*numpy.pi*delta_f*T2eff)**2)
     INTEG_RES = scipy.integrate.quad(SphericalLineshape,0,numpy.pi/2)
     return numpy.sqrt(1./(2*numpy.pi))*INTEG_RES[0] 
@@ -491,7 +497,6 @@ def func_JSPqMT(xData,R1f,M0b):
     VFA_ROFA        = xData[5+len(VFA_parx.ROFA)-1:5+2*len(VFA_parx.ROFA)-1]
     B0              = xData[-1]
 
-
     MTw_Ts          = MTw_parx.Ts
     MTw_Tm          = MTw_parx.Tm
     MTw_ROdur       = MTw_parx.ROdur
@@ -499,7 +504,6 @@ def func_JSPqMT(xData,R1f,M0b):
     VFA_Tr          = VFA_parx.TR - VFA_parx.ROdur
     VFA_ROdur       = VFA_parx.ROdur
 
-    
     ### qMT parx
     R1b         = R1f
     M0f         = 1-M0b
@@ -507,7 +511,7 @@ def func_JSPqMT(xData,R1f,M0b):
     T2f         = qMTcontrainst_parx.R1fT2f/R1f
     MTw_WfSAT   = ( (MTw_SAT_w1RMS/(2*numpy.pi*(MTw_parx.delta_f+B0)))**2 + 
                     (MTw_SAT_w1RMS/(2*numpy.pi*(-MTw_parx.delta_f+B0)))**2)/(2*T2f) # average
-
+    
     ### build matrices
     REX         = numpy.array([ [-1/T2f,    0,         0,               0],
                                 [0,         -1/T2f,    0,               0],
@@ -528,7 +532,6 @@ def func_JSPqMT(xData,R1f,M0b):
                                 [0, 0,                      0,                  -MTw_WbRO] ])+REX
     MTw_RO_At   = numpy.hstack( (MTw_RO_At, C) )
     MTw_RO_At   = numpy.vstack( (MTw_RO_At,numpy.zeros((1,5), dtype=float)) )
-
 
     ### Xtilde operators: MTw
     Xt_MTw_RD   = scipy.linalg.expm(REX_At*MTw_Ts) # resting delay SAT pulse to RO pulse
@@ -552,7 +555,6 @@ def func_JSPqMT(xData,R1f,M0b):
 
     ### Xtilde spoil
     Xt_PHI_SPOIL = numpy.diag([0, 0, 1, 1, 1])
-
 
     ### compute Mxys in steady-state
     # MT0

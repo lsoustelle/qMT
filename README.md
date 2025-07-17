@@ -20,9 +20,7 @@ MRI Sequences
 * **Siemens users**: a prototype sequence (__vibeMT__) is available on Siemens' C<sup>2</sup>P Exchange platform (teamplay).
 * **Bruker users**: a prototype SPGR sequence is available upon [request](https://crmbm.univ-amu.fr/resources/mt-prepared-spgr-sequence/).
 
-The user interfaces for both constructor match the specific parameters to be passed in the *fit_JSPqMT_CLI.py* and *fit_SPqMT_CLI.py* scripts.
-
-Of common note, the *fit_JSPqMT_CLI.py* script is intended to be used on MTw data prepared with sine-modulated off-resonance pulses [1].
+The user interfaces for both constructor match the specific parameters to be passed in the *fit_JSPqMT_CLI.py* script. The latter is intended to be used with MTw data prepared with sine-modulated off-resonance pulses [1].
 
 Additional features
 -------------------

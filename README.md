@@ -2,7 +2,7 @@
 Description
 -----------
 A collection of command-line Python-based scripts for voxel-wise computation of:
-* Joint T<sub>1,f</sub> & Macromolecular Proton Fraction (MPF) maps using a Variable Flip Angle (VFA) & a single {MTw/MT<sub>0</sub>} protocol [1] (*fit_JSPqMT_CLI.py*; "Joint Single-Point qMT"). On-resonance macromolecular saturation can be modeled by the Generalized Bloch model (linear approximation R<sub>2</sub><sup>s,l</sup>) [2] or a super-Lorentzian with a residual broadening term as proposed [1,3] (default).
+* Joint T<sub>1,f</sub> & Macromolecular Proton Fraction (MPF) maps using a Variable Flip Angle (VFA) & a single {MTw/MT<sub>0</sub>} protocol [1] (*fit_JSPqMT_CLI.py*; "Joint Single-Point qMT"). On-resonance macromolecular saturation can be modeled by the Generalized Bloch model (linear approximation R<sub>2</sub><sup>s,l</sup>) [2] or a super-Lorentzian with a residual broadening term [1,3] (default).
 * T<sub>1</sub> maps using the Variable Flip Angle method [4] (*fit_VFA_CLI.py*).
 * MPF maps using the original Single-Point MPF method [5] (*fit_SPqMT_CLI.py*).
 * MTsat maps as described in [6] (*fit_MTsat_CLI.py*).

@@ -35,13 +35,16 @@ def main():
                         \n\t2) Parameters are straightforwardly the same as i) in the Special Card interface from the Siemens' vibeMT C2P sequences, and ii) in the MT preparation card from the MT_SPGR Bruker's sequence.\
                         \n\t3) The conventions T1f = T1b = T1 (=1/R1) and M0f + M0b = 1.0 are adopted.\
                         \n\t4) B1 correction is strongly advised [3].\
-                        \n\t5) B0 correction considerations:\
+                        \n\t5) MT0 & MTw images are considered to share the same readout flip angle.\
+                        \n\t6) The Generalized Bloch Model described in Ref. [4] can be used for the modeling of on-resonance pulses macromolecular saturation.\
+                        \n\t7) B0 correction considerations:\
                         \n\t  - Readout pulses: dB0 is assumed to have no effect regarding on-resonance saturation or resulting flip angle.\
                         \n\t  - Saturation pulses: the script is intended to have a dual-offset saturated (i.e. using a sine-modulated preparation pulse) MTw volume as input.\
                         \nReferences:\
                         \n\t [1] L. Soustelle et al., Quantitative Magnetization Transfer parametric mapping unbiased by on-resonance saturation and dipolar order contributions, ISMRM 2022 \
                         \n\t [2] V. Yarnykh, Fast macromolecular proton fraction mapping from a single off-resonance magnetization transfer measurement, MRM 2012;68:166-178 \
                         \n\t [3] V. Yarnykh et al., Scan–Rescan Repeatability and Impact of B0 and B1 Field Nonuniformity Corrections in Single‐Point Whole‐Brain Macromolecular Proton Fraction Mapping, JMRI 2020;51:1789-1798 \
+                        \n\t [4] J. Assländer et al., Generalized Bloch model: A theory for pulsed magnetization transfer, MRM 2022;87:2003-2017 \
                         " 
     parser = argparse.ArgumentParser(description=text_description,formatter_class=RawTextHelpFormatter)
     parser.add_argument('MT',           nargs="+",help="Input couple MT0/MTw NIfTI path(s) (comma-separated for 3D, single path for 4D)")
@@ -49,17 +52,17 @@ def main():
     parser.add_argument('MPF',          help="Output MPF NIfTI path")
     parser.add_argument('T1f',          help="Output T1f NIfTI path")
     parser.add_argument('--R1f',        help="Output R1f NIfTI path (optional)")
-    parser.add_argument('--MTw_TIMINGS', required=True, help="Sequence timings in ms (comma-separated), in this order:   \n"
+    parser.add_argument('--MTw_TIMINGS',required=True, help="Sequence timings in ms (comma-separated), in this order:   \n"
                                                                 "\t 1) Saturation pulse duration (ms) \n"
                                                                 "\t 2) Interdelay between Saturation pulse and Readout pulse (ms) \n"
                                                                 "\t 3) Readout pulse duration (ms) \n"
                                                                 "\t 4) Sequence Time-to-Repetition (TR; ms) \n"
                                                                 "e.g. --MTw_TIMINGS 12.0,2.1,1.0,30.0")
-    parser.add_argument('--VFA_TIMINGS', required=True, help="Sequence timings in ms (comma-separated), in this order:   \n"
+    parser.add_argument('--VFA_TIMINGS',required=True, help="Sequence timings in ms (comma-separated), in this order:   \n"
                                                                 "\t 1) Readout pulse duration (ms) \n"
                                                                 "\t 2) Sequence Time-to-Repetition (TR; ms) \n"
                                                                 "e.g. --VFA_TIMINGS 1.0,30.0")
-    parser.add_argument('--MTw_PARX', required=True,  help="Saturation parameters (comma-separated), in this order:   \n"
+    parser.add_argument('--MTw_PARX',   required=True,  help="Saturation parameters (comma-separated), in this order:   \n"
                                                                 "\t 1) Readout flip angle of MT0/MTw (deg; single common value) \n"
                                                                 "\t 2) Readout pulse shape (Hann, BP) \n" 
                                                                 "\t 3) Saturation pulse flip angle (deg) \n"
@@ -67,7 +70,7 @@ def main():
                                                                 "\t 5) Saturation pulse shape (Hann-Sine, GaussHann-Sine, Gauss-Sine) \n" 
                                                                 "\t 6) Gaussian saturation pulse FWHM (Hz; not used if purely Hann-Sine-shaped) \n"
                                                                 "e.g. --MTw_PARX 10.0,BP,560.0,4000.0,Hann-Sine")
-    parser.add_argument('--VFA_PARX', required=True,  help="Readout pulse parameters of experiments (comma-separated), in this order:   \n"
+    parser.add_argument('--VFA_PARX',   required=True,  help="Readout pulse parameters of experiments (comma-separated), in this order:   \n"
                                                                 "\t 1) Readout flip angles [VFA1, VFA2, ..., VFAn] (deg; same order as in provided VFA volume(s)) \n"
                                                                 "\t 2) Readout pulse shape (Hann, BP) \n" 
                                                                 "e.g. --VFA_PARX 6,10,25,BP")
@@ -75,11 +78,12 @@ def main():
     parser.add_argument('--B0',                 nargs="?",help="Input B0 map NIfTI path (in Hz; computation time is much longer)")
     parser.add_argument('--mask',               nargs="?",help="Input Mask binary NIfTI path")
     parser.add_argument('--nworkers',           nargs="?",type=int, default=1, help="Use this for multi-threading acceleration (default: 1)")
-    parser.add_argument('--qMTconstraint_PARX',  help="Constained parameters for SP-qMT estimation (comma-separated) in this order:\n"  
+    parser.add_argument('--qMTconstraint_PARX', help="Constained parameters for SP-qMT estimation (comma-separated) in this order:\n"  
                                                                 "\t 1) R1fT2f (default: 0.0158) \n"
                                                                 "\t 2) T2b (s; default: 10.0e-6 s) \n"
                                                                 "\t 3) R (s-1; default: 21.1 s-1) \n"
                                                                 "e.g. --qMTconstraint_PARX 0.0158,10.0e-6,21.1")
+    parser.add_argument('--useGBM', action='store_true', help="Use the Generalized Bloch Model")
 
     args                = parser.parse_args()
     MT_in_niipaths      = [','.join(args.MT)] # ensure it's a comma-separated list
@@ -91,7 +95,7 @@ def main():
     B0_in_niipath       = args.B0
     mask_in_niipath     = args.mask
     NWORKERS            = args.nworkers if args.nworkers <= get_physCPU_number() else get_physCPU_number()
-    print('Working with {} cores'.format(NWORKERS))
+    print('\nWorking with {} cores'.format(NWORKERS))
     
     #### Check inputs
     print('')
@@ -148,6 +152,8 @@ def main():
                                                 T2b    = 10.0e-6,
                                                 R      = 21.1)  
 
+    FLAG_useGBM = True if args.useGBM else False
+
     print('Summary of input MTw/MT0 sequence parameters:')
     print('\t Saturation flip angle: {:.1f} deg'.format(MTw_parx.FAsat))
     print('\t Saturation pulse off-resonance frenquency: {:.1f} Hz'.format(MTw_parx.delta_f))
@@ -172,7 +178,10 @@ def main():
     print('\t T2b:\t {:.1f} us'.format(qMTcontrainst_parx.T2b*1e6))
     print('\t R:\t {:.1f} s-1'.format(qMTcontrainst_parx.R))
     print('')
-    
+    if args.useGBM:
+        print('Using Generalized Bloch Model (readout pulses)')
+    print('')
+
     # last check before going in
     for field in qMTcontrainst_parx._fields:
         if getattr(qMTcontrainst_parx, field) < 0:
@@ -296,7 +305,7 @@ def main():
     #### build xData (prepare qMT parx)
     B1_data = B1_data[mask_idx[0],mask_idx[1],mask_idx[2]][numpy.newaxis,:].T
     B0_data = B0_data[mask_idx[0],mask_idx[1],mask_idx[2]][numpy.newaxis,:].T
-    xData   = func_prepare_qMTparx(B1_data,B0_data)
+    xData   = func_prepare_qMTparx(B1_data,B0_data,FLAG_useGBM)
     
     #### build yData
     MT0_data = MT_data[0][mask_idx[0],mask_idx[1],mask_idx[2]][numpy.newaxis,:].T
@@ -319,7 +328,7 @@ def main():
     with multiprocessing.Pool(NWORKERS) as pool:
         res     = pool.starmap(fit_JSPqMT_lsq,list_iterable)
     delay = time.time()
-    print("---- Done in {} seconds ----".format(delay - start_time))
+    print("---- Done in {:.3f} seconds ----".format(delay - start_time))
     
     # store MPF & T1f/R1f + save nifti
     ref_nii = nibabel.load(MT_in_niipaths[0])
@@ -377,21 +386,11 @@ def get_physCPU_number():
 ###################################################################
 ############## Preparation-related functions
 ################################################################### 
-def func_prepare_qMTparx(B1_data,B0_data):
+def func_prepare_qMTparx(B1_data,B0_data,FLAG_useGBM):
     
     print('Preparing qMT quantities ...')
-    ### VFA
-    if VFA_parx.ROshape == "Hann":
-        VFA_RO_AI,VFA_RO_PI   = 0.5,0.375 # Hann-shaped
-    elif VFA_parx.ROshape == "BP":
-        VFA_RO_AI,VFA_RO_PI   = 1.0,1.0 # Rectangular-shaped
-    VFA_RO_B1peak_nom  = VFA_parx.ROFA*(numpy.pi/180) / (gamma*VFA_RO_AI*VFA_parx.ROdur)
-    VFA_RO_w1RMS_nom   = gamma*VFA_RO_B1peak_nom*numpy.sqrt(VFA_RO_PI)    
-    VFA_RO_G           = func_computeG_SphericalLineshape(qMTcontrainst_parx.T2b,0) # assume no dB0 impact
-    VFA_RO_G           = numpy.tile(VFA_RO_G,B1_data.shape[0])[numpy.newaxis,:].T
-
     ### MTw/MT0 
-    # SAT Pulse AI/PI & w1RMS nominal
+    # SAT Pulse AI/PI, w1RMS nominal & actual Wb arrays
     MTw_SAT_AI,MTw_SAT_PI   = func_computeAIPI_SatPulse(MTw_parx.Tm,MTw_parx.MTshape,MTw_parx.FWHM)
     MTw_SAT_B1peak_nom      = MTw_parx.FAsat*(numpy.pi/180) / (gamma*MTw_SAT_AI*MTw_parx.Tm)
     MTw_SAT_w1RMS_nom       = gamma*MTw_SAT_B1peak_nom*numpy.sqrt(MTw_SAT_PI)
@@ -404,40 +403,99 @@ def func_prepare_qMTparx(B1_data,B0_data):
         with multiprocessing.Pool(NWORKERS) as pool:
             MTw_SAT_G  = pool.starmap(func_computeG_SuperLorentzian,list_iterable)
         delay = time.time()
-        print("--- ... Done in {} seconds".format(delay - start_time))
+        print("--- ... Done in {:.3f} seconds".format(delay - start_time))
         MTw_SAT_G  = numpy.array(MTw_SAT_G)[numpy.newaxis,:].T
     else: # same G for all voxels
         MTw_SAT_G = func_computeG_SuperLorentzian(qMTcontrainst_parx.T2b,MTw_parx.delta_f,0)
         MTw_SAT_G = numpy.tile(MTw_SAT_G,B1_data.shape[0])[numpy.newaxis,:].T
-
-    # RO Pulse AI/PI & w1RMS nominal
-    if MTw_parx.ROshape == "Hann":
-        MTw_RO_AI,MTw_RO_PI   = 0.5,0.375 # Hann-shaped
-    elif MTw_parx.ROshape == "BP":
-        MTw_RO_AI,MTw_RO_PI   = 1.0,1.0 # Rectangular-shaped
-    MTw_RO_B1peak_nom  = MTw_parx.ROFA*(numpy.pi/180) / (gamma*MTw_RO_AI*MTw_parx.ROdur)
-    MTw_RO_w1RMS_nom   = gamma*MTw_RO_B1peak_nom*numpy.sqrt(MTw_RO_PI)   
-    MTw_RO_G           = func_computeG_SphericalLineshape(qMTcontrainst_parx.T2b,0.0) # assume no dB0 impact
-    MTw_RO_G           = numpy.tile(MTw_RO_G,B1_data.shape[0])[numpy.newaxis,:].T    
-
-    ### Wb/FA arrays
     MTw_SAT_w1RMS_array = MTw_SAT_w1RMS_nom * B1_data
     MTw_WbSAT_array     = (numpy.pi * MTw_SAT_w1RMS_nom**2  * MTw_SAT_G) * B1_data**2
-    MTw_WbRO_array      = (numpy.pi * MTw_RO_w1RMS_nom**2   * MTw_RO_G)  * B1_data**2
-    VFA_WbRO_array      = (numpy.pi * VFA_RO_w1RMS_nom**2   * VFA_RO_G)  * B1_data**2
-    MTw_ROFA_array      = MTw_parx.ROFA*numpy.pi/180 * B1_data
-    VFA_ROFA_array      = VFA_parx.ROFA*numpy.pi/180 * B1_data
 
+    ### AI/PI and shapes of VFA/MTw RO pulses
+    if VFA_parx.ROshape == "Hann":
+        VFA_RO_AI,VFA_RO_PI   = 0.5,0.375 # Hann-shaped
+        VFA_RO_shape  = lambda t: ( 0.5*(1 - numpy.cos((2*numpy.pi*t)/VFA_parx.ROdur)) )
+        VFA_RO_t_grid = numpy.linspace(0.0,VFA_parx.ROdur,301)
+    elif VFA_parx.ROshape == "BP":
+        VFA_RO_AI,VFA_RO_PI   = 1.0,1.0 # Rectangular-shaped
+        VFA_RO_shape  = lambda t: numpy.ones_like(t) # BP
+        VFA_RO_t_grid = numpy.linspace(0.0,VFA_parx.ROdur,3)
+    if MTw_parx.ROshape == "Hann":
+        MTw_RO_AI,MTw_RO_PI   = 0.5,0.375 # Hann-shaped
+        MTw_RO_shape  = lambda t: ( 0.5*(1 - numpy.cos((2*numpy.pi*t)/MTw_parx.ROdur)) )
+        MTw_RO_t_grid = numpy.linspace(0.0,MTw_parx.ROdur,301)
+    elif MTw_parx.ROshape == "BP":
+        MTw_RO_AI,MTw_RO_PI   = 1.0,1.0 # Rectangular-shaped
+        MTw_RO_shape  = lambda t: numpy.ones_like(t) # BP
+        MTw_RO_t_grid = numpy.linspace(0.0,MTw_parx.ROdur,3)
+
+    if FLAG_useGBM:
+        # Build LUT of R2sl associated to readout pulses
+        # T2b is fixed, so the only variables are rB1, pulse width & flip angles
+        print("--- Pre-computing R2s,l quantities ...")
+        start_time      = time.time()
+        rB1_grid        = numpy.linspace(0.30,1.60,131) # raster rB1=0.01; fixed range suitable for 7T
+        B1_data_clip    = numpy.clip(B1_data, 0.30, 1.60) # just for R2sl considerations, avoid inconsistencies
+        idx_B1_data     = numpy.abs(rB1_grid[:, None] - numpy.round(B1_data_clip.ravel()[None, :], 2)).argmin(axis=0) # for mapping with same raster as rB1_grid
+
+        # MT0/MTw experiments
+        MTw_R2slRO_array= numpy.zeros((len(B1_data),1))
+        R2slRO_list     = numpy.zeros((len(rB1_grid),1))
+        LUT_Gval        = compute_greens_LUT(MTw_parx.ROdur, 1/qMTcontrainst_parx.T2b, N=100)
+        LUT_Gval_iter   = [LUT_Gval] * len(rB1_grid)
+        PW_iter         = [MTw_parx.ROdur] * len(rB1_grid)
+        omega_y_iter    = MTw_parx.ROFA*numpy.pi/180.0/MTw_parx.ROdur/MTw_RO_AI*MTw_RO_shape(MTw_RO_t_grid) # rad/s
+        omega_y_iter    = [omega_y_iter] * len(rB1_grid)
+        R2sl_iter       = [*zip(omega_y_iter,PW_iter,LUT_Gval_iter,rB1_grid)]
+        with multiprocessing.Pool(NWORKERS) as pool: # loop over rB1_grid basically
+            R2slRO_list = numpy.array( pool.starmap(func_precompute_R2sl,R2sl_iter) )
+        MTw_R2slRO_array = R2slRO_list[idx_B1_data][numpy.newaxis,:].T
+
+        # VFA experiments
+        VFA_R2slRO_array= numpy.zeros((len(B1_data),len(VFA_parx.ROFA)))
+        R2slRO_list     = numpy.zeros((len(rB1_grid),len(VFA_parx.ROFA)))
+        LUT_Gval        = compute_greens_LUT(VFA_parx.ROdur, 1/qMTcontrainst_parx.T2b, N=100)
+        LUT_Gval_iter   = [LUT_Gval] * len(rB1_grid)
+        PW_iter         = [MTw_parx.ROdur] * len(rB1_grid)
+        for ii in range(len(VFA_parx.ROFA)):
+            omega_y_iter= VFA_parx.ROFA[ii]*numpy.pi/180.0/VFA_parx.ROdur/VFA_RO_AI*VFA_RO_shape(VFA_RO_t_grid) # rad/s
+            omega_y_iter= [omega_y_iter] * len(rB1_grid)
+            R2sl_iter   = [*zip(omega_y_iter,PW_iter,LUT_Gval_iter,rB1_grid)]
+            with multiprocessing.Pool(NWORKERS) as pool: # loop over rB1_grid basically
+                R2slRO_list[:,ii] = numpy.array( pool.starmap(func_precompute_R2sl,R2sl_iter) )
+            VFA_R2slRO_array[:,ii] = R2slRO_list[idx_B1_data,ii]
+        print("--- ... Done in {:.3f} seconds".format(time.time() - start_time))  
+    else:
+        # RO Pulse AI/PI, w1RMS nominal & actual Wb arrays
+        VFA_RO_B1peak_nom   = VFA_parx.ROFA*(numpy.pi/180) / (gamma*VFA_RO_AI*VFA_parx.ROdur)
+        VFA_RO_w1RMS_nom    = gamma*VFA_RO_B1peak_nom*numpy.sqrt(VFA_RO_PI)    
+        VFA_RO_G            = func_computeG_SphericalLineshape(qMTcontrainst_parx.T2b,0) # assume no dB0 impact
+        VFA_RO_G            = numpy.tile(VFA_RO_G,B1_data.shape[0])[numpy.newaxis,:].T
+        MTw_RO_B1peak_nom   = MTw_parx.ROFA*(numpy.pi/180) / (gamma*MTw_RO_AI*MTw_parx.ROdur)
+        MTw_RO_w1RMS_nom    = gamma*MTw_RO_B1peak_nom*numpy.sqrt(MTw_RO_PI)   
+        MTw_RO_G            = func_computeG_SphericalLineshape(qMTcontrainst_parx.T2b,0.0) # assume no dB0 impact
+        MTw_RO_G            = numpy.tile(MTw_RO_G,B1_data.shape[0])[numpy.newaxis,:].T    
+        MTw_WbRO_array      = (numpy.pi * MTw_RO_w1RMS_nom**2   * MTw_RO_G)  * B1_data**2
+        VFA_WbRO_array      = (numpy.pi * VFA_RO_w1RMS_nom**2   * VFA_RO_G)  * B1_data**2
+     
+    # common
+    MTw_ROFA_array      = MTw_parx.ROFA*numpy.pi/180 * B1_data # rad
+    VFA_ROFA_array      = VFA_parx.ROFA*numpy.pi/180 * B1_data # rad
+
+    
     ### build xData
-    MTw_SAT_w1RMS   = numpy.full(MTw_WbSAT_array.shape[0],qMTcontrainst_parx.R)[numpy.newaxis,:].T
-
-    xData           = numpy.hstack((MTw_SAT_w1RMS_array,MTw_WbSAT_array,MTw_WbRO_array,MTw_ROFA_array, \
-                                    VFA_WbRO_array,VFA_ROFA_array, \
-                                    B0_data))
+    FLAG_useGBM_array   = numpy.full((len(B1_data), 1), FLAG_useGBM)
+    if FLAG_useGBM:
+        xData   = numpy.hstack((MTw_SAT_w1RMS_array,MTw_WbSAT_array,MTw_R2slRO_array,MTw_ROFA_array, \
+                                VFA_R2slRO_array,VFA_ROFA_array, \
+                                B0_data,FLAG_useGBM_array))
+    else:
+        xData   = numpy.hstack((MTw_SAT_w1RMS_array,MTw_WbSAT_array,MTw_WbRO_array,MTw_ROFA_array, \
+                                VFA_WbRO_array,VFA_ROFA_array, \
+                                B0_data,FLAG_useGBM_array))
     print('... Done')
     return xData
     
-
 def func_computeAIPI_SatPulse(tau,shape,BW):
     if shape == "Hann-Sine": # pure Hann
         satPulse   = lambda t: ( 0.5*(1 - numpy.cos((2*numpy.pi*t)/tau)) )
@@ -469,7 +527,6 @@ def func_computeG_SuperLorentzian(T2b,delta_f,dB0): # super-lorentzian lineshape
         INTEG_RESm = scipy.integrate.quad(Fm,0,1)
         return numpy.sqrt(2/numpy.pi)*(INTEG_RESp[0]+INTEG_RESm[0])/2 # average of G(df+dB0) & G(-df+dB0)
     
-
 def func_computeG_SphericalLineshape(T2b,delta_f):
     # Function for Spherical lineshape integration
     # include neighboors contribution to remove singularity at the magic angle
@@ -482,20 +539,131 @@ def func_computeG_SphericalLineshape(T2b,delta_f):
     INTEG_RES = scipy.integrate.quad(SphericalLineshape,0,numpy.pi/2)
     return numpy.sqrt(1./(2*numpy.pi))*INTEG_RES[0] 
 
+def compute_greens_LUT(PW, R2b, N):
+    tau_arr = numpy.linspace(0, PW, N)
+    def SL(zeta, tau): return numpy.exp(- (R2b**2) * tau**2 * (3*zeta**2 - 1)**2 / 8)
+    LUT_Gval = numpy.array([
+        scipy.integrate.quad(lambda zeta: SL(zeta, tau), 0.0, 1.0, epsabs=1e-8, epsrel=1e-8)[0]
+        for tau in tau_arr
+    ])
+    return LUT_Gval
+
+# implementation of eq. 9 for ode solving
+def func_GenBlochZs(omega_y, PW, LUT_Gval):
+    t_history = []
+    M_history = []
+
+    def func(t, M):
+        nonlocal t_history, M_history
+
+        if t == 0.0:
+            t_history = [0.0]
+            M_history = [M.item()]
+        else:
+            t_history.append(t)
+            M_history.append(M.item())
+
+        # Ensure unique and sorted
+        t_hist_np   = numpy.array(t_history)
+        M_hist_np   = numpy.array(M_history)
+        t_hist_unique, idx_unique = numpy.unique(t_hist_np, return_index=True)
+        t_hist_np   = t_hist_unique
+        M_hist_np   = M_hist_np[idx_unique]
+
+        # Interpolators
+        PW_grid     = numpy.linspace(0, PW, len(omega_y))
+        G_grid      = numpy.linspace(0, PW, len(LUT_Gval))
+        def Mzb_t(tau):     return numpy.interp(tau, t_hist_np, M_hist_np)
+        def omega_y_t(tau): return numpy.interp(tau, PW_grid, omega_y)
+        def G_LUT_t(tau):   return numpy.interp(tau, G_grid, LUT_Gval)
+        if t == 0.0: # initial tspan value, avoid having impossible interpolation with Mzb(tau)
+            integ_y = 0.0
+        else:
+            def integrand_y_t(tau): return G_LUT_t(t - tau) * omega_y_t(tau) * Mzb_t(tau)
+            # adapted num. of samples for discrete Simpson's integration (raster 0.5 us)
+            tau_grid    = numpy.linspace(0.0, t, int(numpy.ceil(t/0.05e-6))) 
+            eval_y      = integrand_y_t(tau_grid)
+            integ_y     = scipy.integrate.simpson(eval_y, tau_grid)
+
+        dM = -omega_y_t(t) * integ_y
+        return dM
+    return func
+
+def func_GenBloch_R2sl(R2sl, xData, yData): 
+    # solving eq. 23 with piece-wise integration over a discretized pulse with arbitrary shape
+    # the pulse should be symmetric and have an odd-number of samples to avoid extensive compution
+    omega_y, PW = xData
+    Mzb_Zs      = yData
+    N           = len(omega_y) - 1  # num. of intervals
+    Dt          = PW/N
+    Xt_PULSE    = numpy.zeros((2, 2, N))
+
+    # First half of the pulse
+    for ii in range(N // 2):
+        MAT = numpy.array([ [-R2sl,        omega_y[ii]],
+                         [-omega_y[ii],       0    ] ])
+        Xt_PULSE[:, :, ii] = scipy.linalg.expm(MAT * Dt)
+    # Second half: symmetric fill
+    for ii in range(N // 2, N):
+        Xt_PULSE[:, :, ii] = Xt_PULSE[:, :, N-ii-1]
+    Xt = numpy.eye(2)
+    for ii in range(N):
+        Xt = Xt @ Xt_PULSE[:, :, ii]
+        
+    M = Xt @ numpy.array([0.0, 1.0]) # Mzb0 = 1.0
+    Mzb_R2sl = M[1]
+    return Mzb_Zs - Mzb_R2sl
+
+def func_GenBlochBP_R2sl(R2sl, xData, yData):
+    # Solve the eq. 23 from 0 to PW (analytical solution to eq. R2sl); works for BP pulse only
+    omega_y, PW = xData
+    Mzb_Zs      = yData
+    s           = numpy.sqrt(complex(R2sl**2 - 4 * omega_y[0]**2))
+    lambda1     = (-R2sl + s) / 2
+    lambda2     = (-R2sl - s) / 2
+    Mzb_R2sl    = numpy.real((R2sl + lambda1) / s * numpy.exp(lambda1 * PW) - 
+                          (R2sl + lambda2) / s * numpy.exp(lambda2 * PW)) * 1.0 # Mzb0 = 1.0
+    return Mzb_Zs - Mzb_R2sl
+
+def func_precompute_R2sl(omega_y,PW,LUT_Gval,rB1):
+    # compute target M_zs at the end of the pulse (using simplified eq. 9)
+    rhs_func = func_GenBlochZs(omega_y*rB1, PW, LUT_Gval)
+    sol = scipy.integrate.solve_ivp(rhs_func, t_span=(0, PW), y0=[1.0], method='RK23', rtol=1e-8, atol=1e-8)
+
+    # root-finding with Brent's method on R2sl to meet Mzb_Zs
+    # see: https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.brentq.html#scipy.optimize.brentq
+    yData = sol.y[0][-1] # target Mzb_Zs 
+    xData = (omega_y*rB1,PW)
+    try:
+        if numpy.all(omega_y == omega_y[0]): # BP
+            print('... Rectangular pulse')
+            R2sl = scipy.optimize.brentq(func_GenBlochBP_R2sl, 0, 1e6, (xData,yData),xtol=1e-4)
+        else: # Hann
+            print('... Shaped pulse')
+            R2sl = scipy.optimize.brentq(func_GenBloch_R2sl, 0, 1e6, (xData,yData),xtol=1e-4)
+        return R2sl
+    except:
+        return 0
+
 
 ###################################################################
 ############## Fitting-related functions
 ###################################################################        
 def func_JSPqMT(xData,R1f,M0b):
-
     ### parse xData
     MTw_SAT_w1RMS   = xData[0]
     MTw_WbSAT       = xData[1]
-    MTw_WbRO        = xData[2]
     MTw_ROFA        = xData[3]
-    VFA_WbRO        = xData[4:4+len(VFA_parx.ROFA)]
     VFA_ROFA        = xData[5+len(VFA_parx.ROFA)-1:5+2*len(VFA_parx.ROFA)-1]
-    B0              = xData[-1]
+    B0              = xData[-2]
+    FLAG_useGBM     = xData[-1]
+
+    if FLAG_useGBM:
+        MTw_R2slRO  = xData[2]
+        VFA_R2slRO  = xData[4:4+len(VFA_parx.ROFA)]
+    else:
+        MTw_WbRO    = xData[2]
+        VFA_WbRO    = xData[4:4+len(VFA_parx.ROFA)]
 
     MTw_Ts          = MTw_parx.Ts
     MTw_Tm          = MTw_parx.Tm
@@ -508,53 +676,102 @@ def func_JSPqMT(xData,R1f,M0b):
     R1b         = R1f
     M0f         = 1-M0b
     R           = qMTcontrainst_parx.R
-    T2f         = qMTcontrainst_parx.R1fT2f/R1f
+    R2f         = 1/(qMTcontrainst_parx.R1fT2f/R1f)
     MTw_WfSAT   = ( (MTw_SAT_w1RMS/(2*numpy.pi*(MTw_parx.delta_f+B0)))**2 + 
-                    (MTw_SAT_w1RMS/(2*numpy.pi*(-MTw_parx.delta_f+B0)))**2)/(2*T2f) # average
+                    (MTw_SAT_w1RMS/(2*numpy.pi*(-MTw_parx.delta_f+B0)))**2)/(2*(1/R2f)) # average
     
     ### build matrices
-    REX         = numpy.array([ [-1/T2f,    0,         0,               0],
-                                [0,         -1/T2f,    0,               0],
-                                [0,         0,         -(R1f+R*M0b),    R*M0f], 
-                                [0,         0,         R*M0b,           -(R1b+R*M0f)] ])
-    C           = numpy.array([[0, 0, R1f*M0f, R1b*M0b]]).T
+    if FLAG_useGBM:
+        # common
+        REX         = numpy.array([ [-R2f,  0,       0,             0,    0],
+                                    [0,     -R2f,    0,             0,    0],
+                                    [0,     0,       -(R1f+R*M0b),  0,    R*M0f], 
+                                    [0,     0,       0,             0,    0],       
+                                    [0,     0,       R*M0b,         0,    -(R1b+R*M0f)] ])
+        C           = numpy.array([[0, 0, R1f*M0f, 0, R1b*M0b]]).T
 
-    REX_At      = numpy.hstack( (REX, C) )
-    REX_At      = numpy.vstack( (REX_At,numpy.zeros((1,5), dtype=float)) ) # 3 Mx/My/Mz Free Pool + 1 Mz Bound Pool + 1 additionnal (C)
+        At_REX      = numpy.hstack( (REX, C) )
+        At_REX      = numpy.vstack( (At_REX,numpy.zeros((1,6), dtype=float)) ) # 3 Mx/My/Mz Free Pool + 1 Mz Bound Pool + 1 additionnal (C)
 
-    MTw_SAT_At  = numpy.diag([0, 0, -MTw_WfSAT, -MTw_WbSAT])+REX
-    MTw_SAT_At  = numpy.hstack( (MTw_SAT_At, C) )
-    MTw_SAT_At  = numpy.vstack( (MTw_SAT_At,numpy.zeros((1,5), dtype=float)) )
+        # MTw
+        At_MTw_SAT  = numpy.diag([0, 0, -MTw_WfSAT, 0, -MTw_WbSAT])+REX
+        At_MTw_SAT  = numpy.hstack( (At_MTw_SAT, C) )
+        At_MTw_SAT  = numpy.vstack( (At_MTw_SAT,numpy.zeros((1,6), dtype=float)) )
 
-    MTw_RO_At   = numpy.array([ [0, 0,                      0,                  0],
-                                [0, 0,                      MTw_ROFA/MTw_ROdur, 0],
-                                [0, -MTw_ROFA/MTw_ROdur,    0,                  0],
-                                [0, 0,                      0,                  -MTw_WbRO] ])+REX
-    MTw_RO_At   = numpy.hstack( (MTw_RO_At, C) )
-    MTw_RO_At   = numpy.vstack( (MTw_RO_At,numpy.zeros((1,5), dtype=float)) )
+        omega       = MTw_ROFA/MTw_ROdur # RO is equivalent to a BP in R2sl formalism
+        At_MTw_RO   = numpy.array([ [0, 0,      0,     0,           0],
+                                    [0, 0,      omega, 0,           0],
+                                    [0, -omega, 0,     0,           0],
+                                    [0, 0,      0,     -MTw_R2slRO, omega],
+                                    [0, 0,      0,     -omega,      0] ])+REX
+        At_MTw_RO   = numpy.hstack( (At_MTw_RO, C) )
+        At_MTw_RO   = numpy.vstack( (At_MTw_RO,numpy.zeros((1,6), dtype=float)) )
+
+        # VFA
+        At_VFA_RO   = numpy.zeros((6,6,len(VFA_ROFA)))
+        for ii in range(len(VFA_ROFA)):
+            omega = VFA_ROFA[ii]/VFA_ROdur # RO is equivalent to a BP in R2sl formalism
+            TMP                 = numpy.array([ [0, 0,      0,     0,               0],
+                                                [0, 0,      omega, 0,               0],
+                                                [0, -omega, 0,     0,               0],
+                                                [0, 0,      0,     -VFA_R2slRO[ii], omega],
+                                                [0, 0,      0,     -omega,          0] ])+REX
+            TMP                 = numpy.hstack( (TMP, C) )
+            At_VFA_RO[:,:,ii]   = numpy.vstack( (TMP,numpy.zeros((1,6), dtype=float)) )
+
+        ### Xtilde spoil
+        Xt_PHI_SPOIL = numpy.diag([0, 0, 1, 0, 1, 1])
+
+    else: # standard "Graham"
+        # common
+        REX         = numpy.array([ [-R2f,    0,        0,               0],
+                                    [0,       -R2f,     0,               0],
+                                    [0,       0,        -(R1f+R*M0b),    R*M0f], 
+                                    [0,       0,        R*M0b,           -(R1b+R*M0f)] ])
+        C           = numpy.array([[0, 0, R1f*M0f, R1b*M0b]]).T
+
+        At_REX      = numpy.hstack( (REX, C) )
+        At_REX      = numpy.vstack( (At_REX,numpy.zeros((1,5), dtype=float)) ) # 3 Mx/My/Mz Free Pool + 1 Mz Bound Pool + 1 additionnal (C)
+
+        # MTw
+        At_MTw_SAT  = numpy.diag([0, 0, -MTw_WfSAT, -MTw_WbSAT])+REX
+        At_MTw_SAT  = numpy.hstack( (At_MTw_SAT, C) )
+        At_MTw_SAT  = numpy.vstack( (At_MTw_SAT,numpy.zeros((1,5), dtype=float)) )
+        
+        omega = MTw_ROFA/MTw_ROdur # assume rectangular pulse
+        At_MTw_RO   = numpy.array([ [0, 0,      0,      0],
+                                    [0, 0,      omega,  0],
+                                    [0, -omega, 0,      0],
+                                    [0, 0,      0,      -MTw_WbRO] ])+REX
+        At_MTw_RO   = numpy.hstack( (At_MTw_RO, C) )
+        At_MTw_RO   = numpy.vstack( (At_MTw_RO,numpy.zeros((1,5), dtype=float)) )
+
+        # VFA
+        At_VFA_RO   = numpy.zeros((5,5,len(VFA_ROFA)))
+        for ii in range(len(VFA_ROFA)):
+            omega = VFA_ROFA[ii]/VFA_ROdur # assume rectangular pulse
+            TMP                 = numpy.array([ [0, 0,        0,     0],
+                                                [0, 0,        omega, 0],
+                                                [0, -omega,   0,     0],
+                                                [0, 0,        0,     -VFA_WbRO[ii]] ])+REX
+            TMP                 = numpy.hstack( (TMP, C) )
+            At_VFA_RO[:,:,ii]   = numpy.vstack( (TMP,numpy.zeros((1,5), dtype=float)) )
+        
+        ### Xtilde spoil
+        Xt_PHI_SPOIL = numpy.diag([0, 0, 1, 1, 1])    
 
     ### Xtilde operators: MTw
-    Xt_MTw_RD   = scipy.linalg.expm(REX_At*MTw_Ts) # resting delay SAT pulse to RO pulse
-    Xt_MTw_TR   = scipy.linalg.expm(REX_At*MTw_Tr) # resting delay RO pulse to TR
-    Xt_MTw_SAT  = scipy.linalg.expm(MTw_SAT_At*MTw_Tm)
-    Xt_MT0_RD   = scipy.linalg.expm(REX_At*(MTw_Tm+MTw_Ts+MTw_Tr))
-    Xt_MTw_RO   = scipy.linalg.expm(MTw_RO_At*MTw_ROdur)
+    Xt_MTw_RD   = scipy.linalg.expm(At_REX*MTw_Ts) # resting delay SAT pulse to RO pulse
+    Xt_MTw_TR   = scipy.linalg.expm(At_REX*MTw_Tr) # resting delay RO pulse to TR
+    Xt_MTw_SAT  = scipy.linalg.expm(At_MTw_SAT*MTw_Tm)
+    Xt_MT0_RD   = scipy.linalg.expm(At_REX*(MTw_Tm+MTw_Ts+MTw_Tr))
+    Xt_MTw_RO   = scipy.linalg.expm(At_MTw_RO*MTw_ROdur)
 
     ### Xtilde operators: VFA
-    Xt_VFA_TR   = scipy.linalg.expm(REX_At*VFA_Tr) # resting delay RO pulse to TR
-    Xt_VFA_RO   = numpy.zeros((5,5,len(VFA_ROFA)))
+    Xt_VFA_TR   = scipy.linalg.expm(At_REX*VFA_Tr) # resting delay RO pulse to TR
+    Xt_VFA_RO   = numpy.zeros((At_REX.shape[0],At_REX.shape[1],len(VFA_ROFA)))
     for ii in range(len(VFA_ROFA)):
-        TMP     = numpy.array([ [0, 0,                      0,                      0],
-                                [0, 0,                      VFA_ROFA[ii]/VFA_ROdur, 0],
-                                [0, -VFA_ROFA[ii]/VFA_ROdur,0,                      0],
-                                [0, 0,                      0,                      -VFA_WbRO[ii]] ])+REX
-        TMP     = numpy.hstack( (TMP, C) )
-        TMP     = numpy.vstack( (TMP,numpy.zeros((1,5), dtype=float)) )
-        numpy.set_printoptions(precision=4)
-        Xt_VFA_RO[:,:,ii] = scipy.linalg.expm(TMP*VFA_ROdur) # resting delay SAT pulse to RO pulse
-
-    ### Xtilde spoil
-    Xt_PHI_SPOIL = numpy.diag([0, 0, 1, 1, 1])
+        Xt_VFA_RO[:,:,ii] = scipy.linalg.expm(At_VFA_RO[:,:,ii]*VFA_ROdur) # resting delay SAT pulse to RO pulse
 
     ### compute Mxys in steady-state
     # MT0
@@ -594,7 +811,6 @@ def fit_JSPqMT_lsq(xData,yData):
             return numpy.array([0, 0])
         except Exception:
             return numpy.array([0, 0])
-    
     
 #### main
 if __name__ == "__main__":

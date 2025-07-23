@@ -11,7 +11,7 @@ Installation
 -----------
 * A simple conda environment should do the trick: 
 ```
-conda create -n qMT -c conda-forge numpy scipy nibabel pybind11 eigen setuptools gxx_linux-64 -y
+conda create -n qMT -c conda-forge numpy scipy nibabel pybind11 eigen setuptools nlopt gxx_linux-64 -y
 conda activate qMT
 ```
 

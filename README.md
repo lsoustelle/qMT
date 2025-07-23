@@ -11,11 +11,11 @@ Installation
 -----------
 * A simple conda environment should do the trick: 
 ```
-conda create -n qMT -c conda-forge numpy scipy nibabel pybind11 eigen setuptools -y
+conda create -n qMT -c conda-forge numpy scipy nibabel pybind11 eigen setuptools gxx_linux-64 -y
 conda activate qMT
 ```
 
-* The *fit_JSPqMT_CLI.py* can be accelerated via a C++ (to-be-)compiled simulation kernel (`--cpp_kernel` flag):
+* The *fit_JSPqMT_CLI.py* can be accelerated via a C++ (to-be-)compiled simulation kernel and optimizer (`--cpp_opt` flag):
 ```
 python3 setup.py build_ext --inplace
 ```

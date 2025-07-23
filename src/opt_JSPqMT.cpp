@@ -1,15 +1,20 @@
+#include <vector>
 #define _USE_MATH_DEFINES
 #include <cmath>
 #include <vector>
 #include <iostream>
-
 #include <pybind11/complex.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/eigen.h>
 #include <unsupported/Eigen/MatrixFunctions>
-
+#include <nlopt.hpp>
 namespace py = pybind11;
+
+
+/////////////////////////////////////////////////////////////////////
+// Simulation kernel ////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////
 
 static std::vector<double> global_data;
 void set_global_data(const std::vector<double>& data) {
@@ -264,12 +269,111 @@ func_JSPqMT_Graham(const std::vector<double>& xData, double R1f, double M0b)
     return Mxy_norm;
 }
 
+/////////////////////////////////////////////////////////////////////
+// Optimization - nlopt /////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////
 
-PYBIND11_MODULE(_kernel_JSPqMT, m)
+struct OptimizationData 
 {
+    std::vector<double> xData;
+    std::vector<double> yData;
+};
+
+double objective_func_GBM(const std::vector<double> &params, std::vector<double> &grad, void *data) 
+{
+    double R1f = params[0];
+    double M0b = params[1];
+
+    OptimizationData* opt_data = static_cast<OptimizationData*>(data);
+    auto& xData = opt_data->xData;
+    auto& yData = opt_data->yData;
+
+    std::vector<double> model_output = func_JSPqMT_GBM(xData, R1f, M0b);
+    double error = 0.0;
+
+    for (int ii=0; ii<yData.size(); ii++) {
+        double diff = model_output[ii] - yData[ii];
+        error += diff * diff;
+    }
+
+    return error / yData.size();
+}
+
+std::vector<double> fit_JSPqMT_nlopt_GBM(const std::vector<double> &xData,const std::vector<double> &yData) 
+{
+    nlopt::opt opt(nlopt::LN_BOBYQA, 2);
+    opt.set_lower_bounds({0.05, 0.0});
+    opt.set_upper_bounds({3.0, 0.5});
+    opt.set_maxeval(400);
+    opt.set_xtol_rel(1e-6);
+    opt.set_ftol_rel(1e-6);
+
+    std::vector<double> x = {1.0, 0.1};
+    OptimizationData opt_data = {xData, yData};
+    opt.set_min_objective(objective_func_GBM, &opt_data);
+
+    double minf;
+    try {
+        opt.optimize(x, minf);
+    } catch (...) {
+        return {0.0, 0.0};
+    }
+
+    return x;
+}
+
+double objective_func_Graham(const std::vector<double> &params, std::vector<double> &grad, void *data) 
+{
+    double R1f = params[0];
+    double M0b = params[1];
+
+    OptimizationData* opt_data = static_cast<OptimizationData*>(data);
+    auto& xData = opt_data->xData;
+    auto& yData = opt_data->yData;
+
+    std::vector<double> model_output = func_JSPqMT_Graham(xData, R1f, M0b);
+    double error = 0.0;
+
+    for (int ii=0; ii<yData.size(); ii++) {
+        double diff = model_output[ii] - yData[ii];
+        error += diff * diff;
+    }
+
+    return error / yData.size();
+}
+
+std::vector<double> fit_JSPqMT_nlopt_Graham(const std::vector<double> &xData, const std::vector<double> &yData) 
+{
+    nlopt::opt opt(nlopt::LN_BOBYQA, 2);
+    opt.set_lower_bounds({0.05, 0.0});
+    opt.set_upper_bounds({3.0, 0.5});
+    opt.set_maxeval(400);
+    opt.set_xtol_rel(1e-6);
+    opt.set_ftol_rel(1e-6);
+
+    std::vector<double> x = {1.0, 0.1};
+    OptimizationData opt_data = {xData, yData};
+    opt.set_min_objective(objective_func_Graham, &opt_data);
+
+    double minf;
+    try {
+        opt.optimize(x, minf);
+    } catch (...) {
+        return {0.0, 0.0};
+    }
+
+    return x;
+}
+
+
+/////////////////////////////////////////////////////////////////////
+// pybind stuff /////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////
+
+PYBIND11_MODULE(opt_JSPqMT, m)
+{
+    // list of exposed methods
     m.def("set_global_data",            &set_global_data,           "Store global data at Python stage");
-    m.def("get_steady_state_GBM",       &get_steady_state_GBM,      "Calculate steady-state w/ GBM formalism");
-    m.def("get_steady_state_Graham",    &get_steady_state_Graham,   "Calculate steady-state w/ Graham formalism (Pampel abs. lineshape)");
-    m.def("func_JSPqMT_GBM",            &func_JSPqMT_GBM,           "Compute normalized mag. quantities w/ GBM");
-    m.def("func_JSPqMT_Graham",         &func_JSPqMT_Graham,        "Compute normalized mag. quantities w/ Graham formalism (Pampel abs. lineshape)");
+    m.def("fit_JSPqMT_nlopt_GBM",       &fit_JSPqMT_nlopt_GBM,      "Optimize using NLopt backend for JSPqMT model w/ GBM formalism");
+    m.def("fit_JSPqMT_nlopt_Graham",    &fit_JSPqMT_nlopt_Graham,   "Optimize using NLopt backend for JSPqMT model w/ Graham formalism");
 }

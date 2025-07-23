@@ -1,8 +1,3 @@
-# ///////////////////////////////////////////////////////////////////////////////////////////////
-# // L. SOUSTELLE, PhD, Aix Marseille Univ, CNRS, CRMBM, Marseille, France
-# // Contact: lucas.soustelle@univ-amu.fr
-# ///////////////////////////////////////////////////////////////////////////////////////////////
-
 import warnings
 warnings.filterwarnings("ignore", message=".*has been enabled*", category=RuntimeWarning) # remove GIL warning
 import sys
@@ -27,9 +22,9 @@ import scipy.integrate
 import scipy.linalg
 import multiprocessing
 try:
-    import _kernel_JSPqMT
+    import opt_JSPqMT
 except ImportError:
-    _kernel_JSPqMT = None
+    opt_JSPqMT = None
 
 def main():
     global gamma; gamma = 267.513 * 1e6 # rad/s/T
@@ -92,7 +87,7 @@ def main():
                                                                 "\t 3) R (s-1; default: 21.1 s-1) \n"
                                                                 "e.g. --qMTconstraint_PARX 0.0158,10.0e-6,21.1")
     parser.add_argument('--use_GBM', action='store_true', help="Use the Generalized Bloch Model")
-    parser.add_argument('--cpp_kernel', action='store_true', help="Use compiled C++ (pybind11) simulation kernel")
+    parser.add_argument('--cpp_opt', action='store_true', help="Use compiled C++ simulation kernel and optimizer (nlopt)")
 
     args                = parser.parse_args()
     MT_in_niipaths      = [','.join(args.MT)] # ensure it's a comma-separated list
@@ -107,11 +102,11 @@ def main():
     #### Speeding stuff
     NWORKERS            = args.nworkers if args.nworkers <= get_physCPU_number() else get_physCPU_number()
     print('\nWorking with {} cores'.format(NWORKERS))
-    if args.cpp_kernel and glob.glob("_kernel_JSPqMT.cpython*.so"):
-        print('and accelerating with compiled C++ kernel')
+    if args.cpp_opt and glob.glob("opt_JSPqMT.cpython*.so"):
+        print('and accelerating with compiled C++ kernel & optimizer')
     else:
-        parser.error('Attempting to use C++ compiled kernel but it was not found (_kernel_JSPqMT.cpython*.so); please run `python3 setup.py`first.')
-    FLAG_usecpp = True if args.cpp_kernel else False
+        parser.error('Attempting to use C++ compiled kernel & optimizer but it was not found (opt_JSPqMT.cpython*.so); please run `python3 setup.py` first.')
+    FLAG_usecpp = True if args.cpp_opt else False
     
     #### Check inputs
     print('')
@@ -345,11 +340,14 @@ def main():
         glob_data = numpy.array([   MTw_parx.TR, MTw_parx.Ts, MTw_parx.Tm, MTw_parx.ROdur, MTw_parx.delta_f, # MTw_parx: TR, Ts, Tm, ROdur, Df
                                     VFA_parx.TR, VFA_parx.ROdur, len(VFA_parx.ROFA), # VFA_parx: TR, ROdur, N_VFA
                                     qMTcontrainst_parx.R, qMTcontrainst_parx.R1fT2f]) # qMTcontrainst_parx: R, R1fT2f
-        _kernel_JSPqMT.set_global_data(glob_data)
-        model_func = _kernel_JSPqMT.func_JSPqMT_GBM if FLAG_useGBM else _kernel_JSPqMT.func_JSPqMT_Graham
+        opt_JSPqMT.set_global_data(glob_data)
+        if FLAG_useGBM:
+            fit_func = opt_JSPqMT.fit_JSPqMT_nlopt_GBM
+        else:
+            fit_func = opt_JSPqMT.fit_JSPqMT_nlopt_Graham
     else: # plain Python
         model_func = func_JSPqMT_py
-    fit_func = partial(fit_JSPqMT_lsq_generic, model_func=model_func)
+        fit_func = partial(fit_JSPqMT_lsq_generic, model_func=model_func)
 
     with multiprocessing.Pool(NWORKERS) as pool:
         res = pool.starmap(fit_func, list_iterable)

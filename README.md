@@ -11,9 +11,15 @@ Installation
 -----------
 * A simple conda environment should do the trick: 
 ```
-conda create -n "qMT" -c conda-forge numpy scipy nibabel -y
+conda create -n qMT -c conda-forge numpy scipy nibabel pybind11 eigen setuptools -y
 conda activate qMT
 ```
+
+* The *fit_JSPqMT_CLI.py* can be accelerated via a C++ (to-be-)compiled simulation kernel (`--cpp_kernel` flag):
+```
+python3 setup.py build_ext --inplace
+```
+
 * Note that the package is intended to work with NIfTI files; please consider conversion packages such as [dcm2niix](https://github.com/rordenlab/dcm2niix) or [DICOMIFIER](https://github.com/lamyj/dicomifier).
 
 MRI Sequences
@@ -38,7 +44,8 @@ python3 fit_JSPqMT_CLI.py  \
             --MTw_PARX 10.0,Hann,560.0,4000.0,Hann-Sine \
             --B1 B1_map.nii.gz \
             --mask mask.nii.gz \
-            --nworkers 20
+            --nworkers 20 \
+            --use_GBM --fast_kernel
 ```
 See the `--help` option for detailed information.
 

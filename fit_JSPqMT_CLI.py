@@ -3,8 +3,17 @@
 # // Contact: lucas.soustelle@univ-amu.fr
 # ///////////////////////////////////////////////////////////////////////////////////////////////
 
+import warnings
+warnings.filterwarnings("ignore", message=".*has been enabled*", category=RuntimeWarning) # remove GIL warning
 import sys
 import os
+import glob
+from functools import partial
+import time
+import argparse; from argparse import RawTextHelpFormatter
+import subprocess
+import collections
+
 # prevent multi-threading trigger of numpy (see https://numpy.org/devdocs/reference/global_state.html)
 os.environ["OMP_NUM_THREADS"] = "1" 
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
@@ -16,12 +25,11 @@ import nibabel
 import scipy.optimize
 import scipy.integrate
 import scipy.linalg
-import time
 import multiprocessing
-import argparse; from argparse import RawTextHelpFormatter
-import subprocess
-import collections
-import warnings
+try:
+    import _kernel_JSPqMT
+except ImportError:
+    _kernel_JSPqMT = None
 
 def main():
     global gamma; gamma = 267.513 * 1e6 # rad/s/T
@@ -83,7 +91,8 @@ def main():
                                                                 "\t 2) T2b (s; default: 10.0e-6 s) \n"
                                                                 "\t 3) R (s-1; default: 21.1 s-1) \n"
                                                                 "e.g. --qMTconstraint_PARX 0.0158,10.0e-6,21.1")
-    parser.add_argument('--useGBM', action='store_true', help="Use the Generalized Bloch Model")
+    parser.add_argument('--use_GBM', action='store_true', help="Use the Generalized Bloch Model")
+    parser.add_argument('--cpp_kernel', action='store_true', help="Use compiled C++ (pybind11) simulation kernel")
 
     args                = parser.parse_args()
     MT_in_niipaths      = [','.join(args.MT)] # ensure it's a comma-separated list
@@ -94,8 +103,15 @@ def main():
     B1_in_niipath       = args.B1
     B0_in_niipath       = args.B0
     mask_in_niipath     = args.mask
+
+    #### Speeding stuff
     NWORKERS            = args.nworkers if args.nworkers <= get_physCPU_number() else get_physCPU_number()
     print('\nWorking with {} cores'.format(NWORKERS))
+    if args.cpp_kernel and glob.glob("_kernel_JSPqMT.cpython*.so"):
+        print('and accelerating with compiled C++ kernel')
+    else:
+        parser.error('Attempting to use C++ compiled kernel but it was not found (_kernel_JSPqMT.cpython*.so); please run `python3 setup.py`first.')
+    FLAG_usecpp = True if args.cpp_kernel else False
     
     #### Check inputs
     print('')
@@ -152,7 +168,7 @@ def main():
                                                 T2b    = 10.0e-6,
                                                 R      = 21.1)  
 
-    FLAG_useGBM = True if args.useGBM else False
+    FLAG_useGBM = True if args.use_GBM else False
 
     print('Summary of input MTw/MT0 sequence parameters:')
     print('\t Saturation flip angle: {:.1f} deg'.format(MTw_parx.FAsat))
@@ -178,7 +194,7 @@ def main():
     print('\t T2b:\t {:.1f} us'.format(qMTcontrainst_parx.T2b*1e6))
     print('\t R:\t {:.1f} s-1'.format(qMTcontrainst_parx.R))
     print('')
-    if args.useGBM:
+    if FLAG_useGBM:
         print('Using Generalized Bloch Model (readout pulses)')
     print('')
 
@@ -323,10 +339,20 @@ def main():
     print('------ Proceeding to R1f & MPF estimations -------')
     print('--------------------------------------------------')
     print('')
-    
     start_time = time.time()
+    if FLAG_usecpp:
+        # prepare global parameters to be passed as C++ stages
+        glob_data = numpy.array([   MTw_parx.TR, MTw_parx.Ts, MTw_parx.Tm, MTw_parx.ROdur, MTw_parx.delta_f, # MTw_parx: TR, Ts, Tm, ROdur, Df
+                                    VFA_parx.TR, VFA_parx.ROdur, len(VFA_parx.ROFA), # VFA_parx: TR, ROdur, N_VFA
+                                    qMTcontrainst_parx.R, qMTcontrainst_parx.R1fT2f]) # qMTcontrainst_parx: R, R1fT2f
+        _kernel_JSPqMT.set_global_data(glob_data)
+        model_func = _kernel_JSPqMT.func_JSPqMT_GBM if FLAG_useGBM else _kernel_JSPqMT.func_JSPqMT_Graham
+    else: # plain Python
+        model_func = func_JSPqMT_py
+    fit_func = partial(fit_JSPqMT_lsq_generic, model_func=model_func)
+
     with multiprocessing.Pool(NWORKERS) as pool:
-        res     = pool.starmap(fit_JSPqMT_lsq,list_iterable)
+        res = pool.starmap(fit_func, list_iterable)
     delay = time.time()
     print("---- Done in {:.3f} seconds ----".format(delay - start_time))
     
@@ -391,9 +417,9 @@ def func_prepare_qMTparx(B1_data,B0_data,FLAG_useGBM):
     print('Preparing qMT quantities ...')
     ### MTw/MT0 
     # SAT Pulse AI/PI, w1RMS nominal & actual Wb arrays
-    MTw_SAT_AI,MTw_SAT_PI   = func_computeAIPI_SatPulse(MTw_parx.Tm,MTw_parx.MTshape,MTw_parx.FWHM)
-    MTw_SAT_B1peak_nom      = MTw_parx.FAsat*(numpy.pi/180) / (gamma*MTw_SAT_AI*MTw_parx.Tm)
-    MTw_SAT_w1RMS_nom       = gamma*MTw_SAT_B1peak_nom*numpy.sqrt(MTw_SAT_PI)
+    MTw_SATAI,MTw_SATPI   = func_computeAIPI_SatPulse(MTw_parx.Tm,MTw_parx.MTshape,MTw_parx.FWHM)
+    MTw_SATB1peak_nom      = MTw_parx.FAsat*(numpy.pi/180) / (gamma*MTw_SATAI*MTw_parx.Tm)
+    MTw_SATw1RMS_nom       = gamma*MTw_SATB1peak_nom*numpy.sqrt(MTw_SATPI)
     if any(B0_data != 0.0): # compute G for each voxel
         print('--- Computing G(delta_f) for all voxels (B0 corrected) ...')
         T2b_array       = numpy.full(B0_data.shape[0],qMTcontrainst_parx.T2b)[numpy.newaxis,:].T
@@ -401,15 +427,15 @@ def func_prepare_qMTparx(B1_data,B0_data,FLAG_useGBM):
         list_iterable   = numpy.hstack((T2b_array,delta_f_array,B0_data))
         start_time = time.time()
         with multiprocessing.Pool(NWORKERS) as pool:
-            MTw_SAT_G  = pool.starmap(func_computeG_SuperLorentzian,list_iterable)
+            MTw_SATG  = pool.starmap(func_computeG_SuperLorentzian,list_iterable)
         delay = time.time()
         print("--- ... Done in {:.3f} seconds".format(delay - start_time))
-        MTw_SAT_G  = numpy.array(MTw_SAT_G)[numpy.newaxis,:].T
+        MTw_SATG  = numpy.array(MTw_SATG)[numpy.newaxis,:].T
     else: # same G for all voxels
-        MTw_SAT_G = func_computeG_SuperLorentzian(qMTcontrainst_parx.T2b,MTw_parx.delta_f,0)
-        MTw_SAT_G = numpy.tile(MTw_SAT_G,B1_data.shape[0])[numpy.newaxis,:].T
-    MTw_SAT_w1RMS_array = MTw_SAT_w1RMS_nom * B1_data
-    MTw_WbSAT_array     = (numpy.pi * MTw_SAT_w1RMS_nom**2  * MTw_SAT_G) * B1_data**2
+        MTw_SATG = func_computeG_SuperLorentzian(qMTcontrainst_parx.T2b,MTw_parx.delta_f,0)
+        MTw_SATG = numpy.tile(MTw_SATG,B1_data.shape[0])[numpy.newaxis,:].T
+    MTw_SATw1RMS_array = MTw_SATw1RMS_nom * B1_data
+    MTw_SATWb_array     = (numpy.pi * MTw_SATw1RMS_nom**2  * MTw_SATG) * B1_data**2
 
     ### AI/PI and shapes of VFA/MTw RO pulses
     if VFA_parx.ROshape == "Hann":
@@ -439,21 +465,25 @@ def func_prepare_qMTparx(B1_data,B0_data,FLAG_useGBM):
         idx_B1_data     = numpy.abs(rB1_grid[:, None] - numpy.round(B1_data_clip.ravel()[None, :], 2)).argmin(axis=0) # for mapping with same raster as rB1_grid
 
         # MT0/MTw experiments
-        MTw_R2slRO_array= numpy.zeros((len(B1_data),1))
-        R2slRO_list     = numpy.zeros((len(rB1_grid),1))
+        MTw_ROR2sl_array= numpy.zeros((len(B1_data),1))
+        ROR2sl_list     = numpy.zeros((len(rB1_grid),1))
         LUT_Gval        = compute_greens_LUT(MTw_parx.ROdur, 1/qMTcontrainst_parx.T2b, N=100)
         LUT_Gval_iter   = [LUT_Gval] * len(rB1_grid)
         PW_iter         = [MTw_parx.ROdur] * len(rB1_grid)
         omega_y_iter    = MTw_parx.ROFA*numpy.pi/180.0/MTw_parx.ROdur/MTw_RO_AI*MTw_RO_shape(MTw_RO_t_grid) # rad/s
         omega_y_iter    = [omega_y_iter] * len(rB1_grid)
         R2sl_iter       = [*zip(omega_y_iter,PW_iter,LUT_Gval_iter,rB1_grid)]
+        if VFA_parx.ROshape == "BP":
+            print('--- ... for rectangular pulse')
+        else:
+            print('--- ... for shaped pulse')
         with multiprocessing.Pool(NWORKERS) as pool: # loop over rB1_grid basically
-            R2slRO_list = numpy.array( pool.starmap(func_precompute_R2sl,R2sl_iter) )
-        MTw_R2slRO_array = R2slRO_list[idx_B1_data][numpy.newaxis,:].T
+            ROR2sl_list = numpy.array( pool.starmap(func_precompute_R2sl,R2sl_iter) )
+        MTw_ROR2sl_array = ROR2sl_list[idx_B1_data][numpy.newaxis,:].T
 
         # VFA experiments
-        VFA_R2slRO_array= numpy.zeros((len(B1_data),len(VFA_parx.ROFA)))
-        R2slRO_list     = numpy.zeros((len(rB1_grid),len(VFA_parx.ROFA)))
+        VFA_ROR2sl_array= numpy.zeros((len(B1_data),len(VFA_parx.ROFA)))
+        ROR2sl_list     = numpy.zeros((len(rB1_grid),len(VFA_parx.ROFA)))
         LUT_Gval        = compute_greens_LUT(VFA_parx.ROdur, 1/qMTcontrainst_parx.T2b, N=100)
         LUT_Gval_iter   = [LUT_Gval] * len(rB1_grid)
         PW_iter         = [MTw_parx.ROdur] * len(rB1_grid)
@@ -462,8 +492,8 @@ def func_prepare_qMTparx(B1_data,B0_data,FLAG_useGBM):
             omega_y_iter= [omega_y_iter] * len(rB1_grid)
             R2sl_iter   = [*zip(omega_y_iter,PW_iter,LUT_Gval_iter,rB1_grid)]
             with multiprocessing.Pool(NWORKERS) as pool: # loop over rB1_grid basically
-                R2slRO_list[:,ii] = numpy.array( pool.starmap(func_precompute_R2sl,R2sl_iter) )
-            VFA_R2slRO_array[:,ii] = R2slRO_list[idx_B1_data,ii]
+                ROR2sl_list[:,ii] = numpy.array( pool.starmap(func_precompute_R2sl,R2sl_iter) )
+            VFA_ROR2sl_array[:,ii] = ROR2sl_list[idx_B1_data,ii]
         print("--- ... Done in {:.3f} seconds".format(time.time() - start_time))  
     else:
         # RO Pulse AI/PI, w1RMS nominal & actual Wb arrays
@@ -481,16 +511,15 @@ def func_prepare_qMTparx(B1_data,B0_data,FLAG_useGBM):
     # common
     MTw_ROFA_array      = MTw_parx.ROFA*numpy.pi/180 * B1_data # rad
     VFA_ROFA_array      = VFA_parx.ROFA*numpy.pi/180 * B1_data # rad
-
     
-    ### build xData
+    ### build xData (depending on GBM use)
     FLAG_useGBM_array   = numpy.full((len(B1_data), 1), FLAG_useGBM)
     if FLAG_useGBM:
-        xData   = numpy.hstack((MTw_SAT_w1RMS_array,MTw_WbSAT_array,MTw_R2slRO_array,MTw_ROFA_array, \
-                                VFA_R2slRO_array,VFA_ROFA_array, \
+        xData   = numpy.hstack((MTw_SATw1RMS_array,MTw_SATWb_array,MTw_ROR2sl_array,MTw_ROFA_array, \
+                                VFA_ROR2sl_array,VFA_ROFA_array, \
                                 B0_data,FLAG_useGBM_array))
     else:
-        xData   = numpy.hstack((MTw_SAT_w1RMS_array,MTw_WbSAT_array,MTw_WbRO_array,MTw_ROFA_array, \
+        xData   = numpy.hstack((MTw_SATw1RMS_array,MTw_SATWb_array,MTw_WbRO_array,MTw_ROFA_array, \
                                 VFA_WbRO_array,VFA_ROFA_array, \
                                 B0_data,FLAG_useGBM_array))
     print('... Done')
@@ -636,10 +665,8 @@ def func_precompute_R2sl(omega_y,PW,LUT_Gval,rB1):
     xData = (omega_y*rB1,PW)
     try:
         if numpy.all(omega_y == omega_y[0]): # BP
-            print('... Rectangular pulse')
             R2sl = scipy.optimize.brentq(func_GenBlochBP_R2sl, 0, 1e6, (xData,yData),xtol=1e-4)
         else: # Hann
-            print('... Shaped pulse')
             R2sl = scipy.optimize.brentq(func_GenBloch_R2sl, 0, 1e6, (xData,yData),xtol=1e-4)
         return R2sl
     except:
@@ -649,18 +676,18 @@ def func_precompute_R2sl(omega_y,PW,LUT_Gval,rB1):
 ###################################################################
 ############## Fitting-related functions
 ###################################################################        
-def func_JSPqMT(xData,R1f,M0b):
+def func_JSPqMT_py(xData,R1f,M0b):
     ### parse xData
-    MTw_SAT_w1RMS   = xData[0]
-    MTw_WbSAT       = xData[1]
+    MTw_SATw1RMS    = xData[0]
+    MTw_SATWb       = xData[1]
     MTw_ROFA        = xData[3]
     VFA_ROFA        = xData[5+len(VFA_parx.ROFA)-1:5+2*len(VFA_parx.ROFA)-1]
     B0              = xData[-2]
     FLAG_useGBM     = xData[-1]
 
     if FLAG_useGBM:
-        MTw_R2slRO  = xData[2]
-        VFA_R2slRO  = xData[4:4+len(VFA_parx.ROFA)]
+        MTw_ROR2sl  = xData[2]
+        VFA_ROR2sl  = xData[4:4+len(VFA_parx.ROFA)]
     else:
         MTw_WbRO    = xData[2]
         VFA_WbRO    = xData[4:4+len(VFA_parx.ROFA)]
@@ -677,8 +704,8 @@ def func_JSPqMT(xData,R1f,M0b):
     M0f         = 1-M0b
     R           = qMTcontrainst_parx.R
     R2f         = 1/(qMTcontrainst_parx.R1fT2f/R1f)
-    MTw_WfSAT   = ( (MTw_SAT_w1RMS/(2*numpy.pi*(MTw_parx.delta_f+B0)))**2 + 
-                    (MTw_SAT_w1RMS/(2*numpy.pi*(-MTw_parx.delta_f+B0)))**2)/(2*(1/R2f)) # average
+    MTw_WfSAT   = ( (MTw_SATw1RMS/(2*numpy.pi*(MTw_parx.delta_f+B0)))**2 + 
+                    (MTw_SATw1RMS/(2*numpy.pi*(-MTw_parx.delta_f+B0)))**2)/(2*(1/R2f)) # average
     
     ### build matrices
     if FLAG_useGBM:
@@ -694,7 +721,7 @@ def func_JSPqMT(xData,R1f,M0b):
         At_REX      = numpy.vstack( (At_REX,numpy.zeros((1,6), dtype=float)) ) # 3 Mx/My/Mz Free Pool + 1 Mz Bound Pool + 1 additionnal (C)
 
         # MTw
-        At_MTw_SAT  = numpy.diag([0, 0, -MTw_WfSAT, 0, -MTw_WbSAT])+REX
+        At_MTw_SAT  = numpy.diag([0, 0, -MTw_WfSAT, 0, -MTw_SATWb])+REX
         At_MTw_SAT  = numpy.hstack( (At_MTw_SAT, C) )
         At_MTw_SAT  = numpy.vstack( (At_MTw_SAT,numpy.zeros((1,6), dtype=float)) )
 
@@ -702,7 +729,7 @@ def func_JSPqMT(xData,R1f,M0b):
         At_MTw_RO   = numpy.array([ [0, 0,      0,     0,           0],
                                     [0, 0,      omega, 0,           0],
                                     [0, -omega, 0,     0,           0],
-                                    [0, 0,      0,     -MTw_R2slRO, omega],
+                                    [0, 0,      0,     -MTw_ROR2sl, omega],
                                     [0, 0,      0,     -omega,      0] ])+REX
         At_MTw_RO   = numpy.hstack( (At_MTw_RO, C) )
         At_MTw_RO   = numpy.vstack( (At_MTw_RO,numpy.zeros((1,6), dtype=float)) )
@@ -714,7 +741,7 @@ def func_JSPqMT(xData,R1f,M0b):
             TMP                 = numpy.array([ [0, 0,      0,     0,               0],
                                                 [0, 0,      omega, 0,               0],
                                                 [0, -omega, 0,     0,               0],
-                                                [0, 0,      0,     -VFA_R2slRO[ii], omega],
+                                                [0, 0,      0,     -VFA_ROR2sl[ii], omega],
                                                 [0, 0,      0,     -omega,          0] ])+REX
             TMP                 = numpy.hstack( (TMP, C) )
             At_VFA_RO[:,:,ii]   = numpy.vstack( (TMP,numpy.zeros((1,6), dtype=float)) )
@@ -734,7 +761,7 @@ def func_JSPqMT(xData,R1f,M0b):
         At_REX      = numpy.vstack( (At_REX,numpy.zeros((1,5), dtype=float)) ) # 3 Mx/My/Mz Free Pool + 1 Mz Bound Pool + 1 additionnal (C)
 
         # MTw
-        At_MTw_SAT  = numpy.diag([0, 0, -MTw_WfSAT, -MTw_WbSAT])+REX
+        At_MTw_SAT  = numpy.diag([0, 0, -MTw_WfSAT, -MTw_SATWb])+REX
         At_MTw_SAT  = numpy.hstack( (At_MTw_SAT, C) )
         At_MTw_SAT  = numpy.vstack( (At_MTw_SAT,numpy.zeros((1,5), dtype=float)) )
         
@@ -795,21 +822,17 @@ def func_JSPqMT(xData,R1f,M0b):
         Mxy_VFA[ii] = Mss[2]*numpy.sin(VFA_ROFA[ii])
 
     return numpy.divide(numpy.concatenate((Mxy_VFA,[Mxy_MTw]),axis=0), Mxy_MT0, where=Mxy_MT0>0) # return Mxy/MT0 array
-    
-def fit_JSPqMT_lsq(xData,yData):
+  
+def fit_JSPqMT_lsq_generic(xData,yData,model_func):
     with warnings.catch_warnings():
         warnings.filterwarnings('error', category=RuntimeWarning)
         try:
-            popt, pcov = scipy.optimize.curve_fit(func_JSPqMT,xData,yData,
+            popt, pcov = scipy.optimize.curve_fit(model_func,xData,yData,
                                          p0=[1.0, 0.1], bounds=([0.05, 0],[3.0, 0.5]), 
                                          method='trf', maxfev=400,
                                          xtol=1e-6,ftol=1e-6)
             return popt
-        except RuntimeError:
-            return numpy.array([0, 0])
-        except RuntimeWarning:
-            return numpy.array([0, 0])
-        except Exception:
+        except (RuntimeError, RuntimeWarning, Exception):
             return numpy.array([0, 0])
     
 #### main

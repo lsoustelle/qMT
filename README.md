@@ -35,12 +35,12 @@ Usage
 ```
 python3 fit_JSPqMT_CLI.py  \
             MT0.nii.gz,MTw.nii.gz \
-            VFA.nii.gz \
+            PDw_FA6.nii.gz,T1w_FA25.nii.gz \
             MPF_JSPqMT.nii.gz \
             T1f_JSPqMT.nii.gz \
             --MTw_TIMINGS 12.0,2.1,1.0,30.0 \
             --VFA_TIMINGS 1.0,30.0 \
-            --VFA_PARX 6.0,10.0,25.0,Hann \
+            --VFA_PARX 6.0,25.0,Hann \
             --MTw_PARX 10.0,Hann,560.0,4000.0,Hann-Sine \
             --B1 B1_map.nii.gz \
             --mask mask.nii.gz \

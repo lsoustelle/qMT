@@ -27,7 +27,7 @@ MRI Sequences
 * **Siemens users**: a prototype sequence (__vibeMT__) is available on Siemens' C<sup>2</sup>P Exchange platform (teamplay).
 * **Bruker users**: a prototype MT-prepared SPGR sequence is available upon [request](https://crmbm.univ-amu.fr/resources/mt-prepared-spgr-sequence/).
 
-The user interfaces for both constructor match the specific parameters to be passed in the *fit_JSPqMT_CLI.py* script. The latter is intended to be used with MT-weighted data prepared with sine-modulated off-resonance pulses [1].
+The user interfaces for both constructors are designed to match the parameters to be passed in the *fit_JSPqMT_CLI.py* script. The latter is intended to be used with MT-weighted data prepared with sine-modulated off-resonance pulses [1].
 
 Usage
 -----
@@ -45,7 +45,7 @@ python3 fit_JSPqMT_CLI.py  \
             --B1 B1_map.nii.gz \
             --mask mask.nii.gz \
             --nworkers 20 \
-            --use_GBM --fast_kernel
+            --use_GBM --cpp_opt
 ```
 See the `--help` option for detailed information.
 

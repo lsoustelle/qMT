@@ -172,7 +172,7 @@ def main():
     if len(args.MTw_PARX) > 5:
         print('\t Gaussian pulse FWHM: {:.1f} Hz'.format(MTw_parx.FWHM))
     print('\t Readout flip angle: {:.1f} deg'.format(MTw_parx.ROFA))
-    print('\t Readout pulse duration: {:.1f} ms'.format(MTw_parx.ROdur*1e3))
+    print('\t Readout pulse duration: {:.2f} ms'.format(MTw_parx.ROdur*1e3))
     print('\t Readout pulse shape: {}'.format(MTw_parx.ROshape))
     print('\t Saturation pulse duration: {:.1f} ms'.format(MTw_parx.Tm*1e3))
     print('\t Interdelay saturation pulse <--> Readout pulse: {:.2f} ms'.format(MTw_parx.Ts*1e3))
@@ -180,7 +180,7 @@ def main():
     print('')
     print('Summary of input VFA sequence parameters:')
     print('\t Readout flip angles: [' + ', '.join('{:.1f}'.format(v) for v in VFA_parx.ROFA) + '] deg')
-    print('\t Readout pulse duration: {:.1f} ms'.format(VFA_parx.ROdur*1e3))
+    print('\t Readout pulse duration: {:.2f} ms'.format(VFA_parx.ROdur*1e3))
     print('\t Readout pulse shape: {}'.format(VFA_parx.ROshape))
     print('\t Sequence Time-to-Repetition: {:.1f} ms'.format(VFA_parx.TR*1e3))
     print('')

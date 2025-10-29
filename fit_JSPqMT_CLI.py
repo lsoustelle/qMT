@@ -460,8 +460,10 @@ def func_prepare_qMTparx(B1_data,B0_data,FLAG_useGBM):
         start_time      = time.time()
         rB1_grid        = numpy.linspace(0.30,1.60,131) # raster rB1=0.01; fixed range suitable for 7T
         B1_data_clip    = numpy.clip(B1_data, 0.30, 1.60) # just for R2sl considerations, avoid inconsistencies
-        idx_B1_data     = numpy.abs(rB1_grid[:, None] - numpy.round(B1_data_clip.ravel()[None, :], 2)).argmin(axis=0) # for mapping with same raster as rB1_grid
-
+        B1_data_rounded = numpy.round(B1_data_clip, 2)
+        idx_B1_data     = numpy.round((B1_data_rounded - rB1_grid[0]) / (rB1_grid[1] - rB1_grid[0])).astype(int)
+        idx_B1_data     = numpy.clip(idx_B1_data, 0, len(rB1_grid) - 1).ravel()
+        
         # MT0/MTw experiments
         MTw_ROR2sl_array= numpy.zeros((len(B1_data),1))
         ROR2sl_list     = numpy.zeros((len(rB1_grid),1))
@@ -835,4 +837,4 @@ def fit_JSPqMT_lsq_generic(xData,yData,model_func):
     
 #### main
 if __name__ == "__main__":
-    sys.exit(main()) 
+    sys.exit(main())

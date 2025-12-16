@@ -103,9 +103,11 @@ def main():
     NWORKERS            = args.nworkers if args.nworkers <= get_physCPU_number() else get_physCPU_number()
     print('\nWorking with {} cores'.format(NWORKERS))
     if args.cpp_opt:
-        print('and accelerating with compiled C++ kernel & optimizer')
-    if not glob.glob("opt_JSPqMT.cpython*.so"):
-        parser.error('Attempting to use C++ compiled kernel & optimizer but it was not found (opt_JSPqMT.cpython*.so); please run `python3 setup.py` first.')
+        if opt_JSPqMT is None:
+            parser.error('Attempting to use C++ compiled kernel & optimizer but it was not found.\n'
+                         'Please run `python3 setup.py build_ext --inplace` first or remove --cpp_opt flag.')
+        else:
+            print('and accelerating with compiled C++ kernel & optimizer')
     FLAG_usecpp = True if args.cpp_opt else False
     
     #### Check inputs

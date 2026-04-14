@@ -22,9 +22,12 @@ import scipy.integrate
 import scipy.linalg
 import multiprocessing
 try:
-    import opt_JSPqMT
+    from qmt import opt_JSPqMT
 except ImportError:
-    opt_JSPqMT = None
+    raise ImportError(
+        'Could not import opt_JSPqMT extension. '
+        'Please rebuild the package: pip install .'
+    )
 
 def main():
     global gamma; gamma = 267.513 * 1e6 # rad/s/T
@@ -103,10 +106,6 @@ def main():
     NWORKERS            = args.nworkers if args.nworkers <= get_physCPU_number() else get_physCPU_number()
     print('\nWorking with {} cores'.format(NWORKERS))
     if args.cpp_opt:
-        if opt_JSPqMT is None:
-            parser.error('Attempting to use C++ compiled kernel & optimizer but it was not found.\n'
-                         'Please run `python3 setup.py build_ext --inplace` first or remove --cpp_opt flag.')
-        else:
             print('and accelerating with compiled C++ kernel & optimizer')
     FLAG_usecpp = True if args.cpp_opt else False
     
@@ -326,7 +325,10 @@ def main():
     yData    = numpy.zeros((MTw_data.shape[0],len(VFA_data)))
     for ii in range(len(VFA_data)):
         yData[:,ii] = VFA_data[ii][mask_idx[0],mask_idx[1],mask_idx[2]][numpy.newaxis,:].T.ravel()
-    yData = numpy.divide(numpy.concatenate((yData,MTw_data),axis=1), MT0_data, where=MT0_data>0)
+    yData = numpy.divide(numpy.concatenate((yData,MTw_data),axis=1), 
+                            MT0_data, 
+                            out=numpy.zeros_like(numpy.concatenate((yData,MTw_data),axis=1)), 
+                            where=MT0_data>0)
     list_iterable = [*zip(xData,yData)]
 
 
@@ -357,12 +359,11 @@ def main():
     print("---- Done in {:.3f} seconds ----".format(delay - start_time))
     
     # store MPF & T1f/R1f + save nifti
-    ref_nii = nibabel.load(MT_in_niipaths[0])
-
+    ref_nii     = nibabel.load(MT_in_niipaths[0])
     R1f_map     = numpy.full(ref_nii.shape[0:3],0,dtype=float)
     R1f_map[mask_idx[0],mask_idx[1],mask_idx[2]] = [a_tup[0] for a_tup in res] # get specific array elements from tuple in a tuple list
     ones_map    = numpy.full(ref_nii.shape[0:3],1,dtype=float)
-    T1f_map     = numpy.divide(ones_map, R1f_map, where=R1f_map>0)
+    T1f_map     = numpy.divide(ones_map, R1f_map, out=numpy.zeros_like(R1f_map), where=R1f_map>0)
     new_img     = nibabel.Nifti1Image(T1f_map, ref_nii.affine, ref_nii.header)
     nibabel.save(new_img, T1f_out_niipath)
     if args.R1f is not None:

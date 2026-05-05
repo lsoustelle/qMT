@@ -1,6 +1,6 @@
 # ///////////////////////////////////////////////////////////////////////////////////////////////
 # // L. SOUSTELLE, PhD, Aix Marseille Univ, CNRS, CRMBM, Marseille, France
-# // 2021/02/06
+# // 2026/05/05
 # // Contact: lucas.soustelle@univ-amu.fr
 # ///////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -145,7 +145,7 @@ def main():
     MTw_data    = MT_data[:,:,:,1]
     MT0_ydata   = MT0_data[mask_idx[0],mask_idx[1],mask_idx[2]][numpy.newaxis,:].T
     MTw_yData   = numpy.divide(MTw_data[mask_idx[0],mask_idx[1],mask_idx[2]][numpy.newaxis,:].T,MT0_ydata, \
-                                         out=numpy.ones(T1_data.shape, dtype=float), where=MT0_ydata!=0)
+                                         out=numpy.ones(T1_data.shape, dtype=float), where=MT0_ydata!=0).squeeze()
     
     #### iterable lists
     xtolVal     = [xtolVal] * xData.shape[0]
@@ -170,14 +170,13 @@ def main():
     ref_nii = nibabel.load(MT_in_niipath)
     MTsat_map = numpy.full(ref_nii.shape[0:3],0,dtype=float)
     MTsat_map[mask_idx[0],mask_idx[1],mask_idx[2]] = MTsat*100
-    # MTsat_map[(MTsat_map < 0) | (MTsat_map > 1000)] = 0
+    MTsat_map[(MTsat_map < 0) | (MTsat_map > 300)] = 0
     new_img = nibabel.Nifti1Image(MTsat_map, ref_nii.affine, ref_nii.header)
     nibabel.save(new_img, MTsat_out_niipath)
     
     if args.MTsatB1sq is not None and args.B1 is not None:
-        MTsatB1sq_map = numpy.full(ref_nii.shape[0:3],0,dtype=float)
-        MTsatB1sq_map[mask_idx[0],mask_idx[1],mask_idx[2]] = MTsat*100
         MTsatB1sq_map = numpy.divide(MTsat_map, B1_map**2, out=numpy.zeros(MTsat_map.shape, dtype=float), where=B1_map!=0)
+        MTsatB1sq_map[(MTsatB1sq_map < 0) | (MTsatB1sq_map > 300)] = 0
         new_img = nibabel.Nifti1Image(MTsatB1sq_map, ref_nii.affine, ref_nii.header)
         nibabel.save(new_img, args.MTsatB1sq)
 
@@ -239,18 +238,3 @@ def get_physCPU_number():
 ################################################################### 
 if __name__ == "__main__":
     sys.exit(main()) 
-
-   
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    

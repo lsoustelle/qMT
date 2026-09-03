@@ -9,9 +9,8 @@ A collection of command-line Python-based scripts for voxel-wise computation of:
 ## Installation
 
 ```bash
-git clone https://github.com/lsoustelle/qMT.git
-cd qMT
-conda create -n qMT -c conda-forge python=3.11 numpy scipy nibabel pybind11 eigen scikit-build-core nlopt gxx_linux-64 -y
+git clone https://github.com/lsoustelle/qMT.git && cd qMT
+conda env create -f environment.yml
 conda activate qMT
 pip install .
 ```

@@ -1,0 +1,13 @@
+name: qMT
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - numpy
+  - scipy
+  - nibabel
+  - pybind11
+  - eigen
+  - scikit-build-core
+  - nlopt
+  - gxx_linux-64

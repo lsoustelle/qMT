@@ -240,7 +240,7 @@ def _ants_rigid_register(fixed: Path, moving: Path, out_prefix: Path,
         "--shrink-factors", shrink_factors,
         "--smoothing-sigmas", smoothing_sigmas, # "--random-seed", "12345",
     ]
-    subprocess.run([str(c) for c in cmd], check=True)
+    _run(cmd, verbose=verbose)
     return Path(f"{out_prefix}0GenericAffine.mat")
 
 def _apply_transforms(in_path: Path, ref_path: Path, out_path: Path,
@@ -250,7 +250,7 @@ def _apply_transforms(in_path: Path, ref_path: Path, out_path: Path,
            "-i", str(in_path), "-o", str(out_path), "-r", str(ref_path)]
     for t in (transforms or []):
         cmd += ["-t", str(t)]
-    subprocess.run(cmd, check=True)
+    _run(cmd, verbose=verbose)
     return Path(out_path)
 
 def _load_4d(path: Path):
@@ -443,7 +443,8 @@ def main():
     for e in entries:
         out_prefix = tmp_fld / f"{e['role']}_MoCo_"
         warped_path = Path(f"{out_prefix}Warped.nii.gz")
-        print(f"  Registering '{e['role']}' -> '{refvfa_reg}'...")
+        if e['role'] != refvfa_reg:
+            print(f"  Registering '{e['role']}' -> '{refvfa_reg}'...")
         _ants_rigid_register(
             fixed=ref_entry["N4be"], moving=e["N4be"], out_prefix=out_prefix,
             convergence="250x100,1e-6,10",

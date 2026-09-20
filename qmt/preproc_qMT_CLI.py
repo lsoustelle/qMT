@@ -124,8 +124,8 @@ def validate_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
     v["b1_fac"]  = args.B1_fac
 
     # VFA (N>=2 flip angles) / MT (exactly MT0,MTw)
-    vfa_paths   = _parse_path_list(args.vfa, "vfa", parser, expected_n=None)
-    mt_paths    = _parse_path_list(args.mt, "mt", parser, expected_n=2)
+    vfa_paths   = _parse_path_list(args.VFA, "vfa", parser, expected_n=None)
+    mt_paths    = _parse_path_list(args.MT, "mt", parser, expected_n=2)
 
     # Build entries with explicit labels, used for regrouping at the end.
     # VFA labels are generated from the order --VFA was given (vfa0,vfa1,...)    

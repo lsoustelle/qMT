@@ -117,11 +117,11 @@ def validate_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         parser.error(f"--anat: file not found: {anat_path}")
     v["anat_path"] = anat_path
 
-    b1_path = Path(args.b1)
+    b1_path = Path(args.B1)
     if not b1_path.is_file():
         parser.error(f"--B1: file not found: {b1_path}")
     v["b1_path"] = b1_path
-    v["b1_fac"]  = args.b1_fac
+    v["b1_fac"]  = args.B1_fac
 
     # VFA (N>=2 flip angles) / MT (exactly MT0,MTw)
     vfa_paths   = _parse_path_list(args.vfa, "vfa", parser, expected_n=None)

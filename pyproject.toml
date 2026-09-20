@@ -3,6 +3,7 @@ requires      = ["scikit-build-core>=0.9"]
 build-backend = "scikit_build_core.build"
 
 [project.scripts]
+preproc-qMT = "qmt.preproc_qMT_CLI:main"
 fit-JSPqMT  = "qmt.fit_JSPqMT_CLI:main"
 fit-MTsat   = "qmt.fit_MTsat_CLI:main"
 fit-SPqMT   = "qmt.fit_SPqMT_CLI:main"
@@ -11,7 +12,7 @@ synt-SPGR   = "qmt.synt_SPGR_CLI:main"
 
 [project]
 name            = "qmt"
-version         = "0.1"
+version         = "0.2"
 description     = "Package for qMT MRI analyses"
 readme          = "README.md"
 license         = { text = "MIT" }
@@ -21,6 +22,9 @@ dependencies = [
     "numpy>=1.24",
     "scipy>=1.10",
     "nibabel>=5",
+    "ants",
+    "nipreps-synthstrip",
+    "tmppca @ git+https://github.com/lsoustelle/tMPPCA.git@main",
 ]
 
 [tool.scikit-build]

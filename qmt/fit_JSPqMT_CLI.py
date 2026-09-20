@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 import warnings
 warnings.filterwarnings("ignore", message=".*has been enabled*", category=RuntimeWarning) # remove GIL warning
 import sys

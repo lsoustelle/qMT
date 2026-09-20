@@ -83,14 +83,14 @@ fit-SPqMT  \
 
 
 ## References
-[1] L. Soustelle et al., Quantitative magnetization transfer MRI unbiased by on‐resonance saturation and dipolar order contributions, MRM 2023
-[2] J. Assländer et al., Generalized Bloch model: A theory for pulsed magnetization transfer, MRM 2022;87:2003-2017
-[3] A. Pampel et al., Orientation dependence of magnetization transfer parameters in human white matter, NeuroImage 2015;114:136-146
-[4] L. Chang et al., Linear least-squares method for unbiased estimation of T1 from SPGR signals, MRM 2008;60:496-501
-[5] V. Yarnykh, Fast macromolecular proton fraction mapping from a single off-resonance magnetization transfer measurement, MRM 2012;68:166-178
-[6] G. Helms et al., High-resolution maps of magnetization transfer with inherent correction for RF inhomogeneity and T1 relaxation obtained from 3D FLASH MRI, MRM 2008;60:1396-1407
-[7] V. Yarnykh, Time-efficient, high-resolution, whole brain three-dimensional macromolecular proton fraction mapping, MRM 2016;75:2100-2106 
-[8] J. Olesen et al., Tensor denoising of multidimensional MRI data, MRM 2022;89:1-13
-[9] B. Avants et al., A reproducible evaluation of ANTs similarity metric performance in brain image registration, NeuroImage 2011;2033-2044
-[10] L. Soustelle et al., Determination of optimal parameters for 3D single‐point macromolecular proton fraction mapping at 7T in healthy and demyelinated mouse brain, MRM 2021;85:369-379 
+1. L. Soustelle et al., Quantitative magnetization transfer MRI unbiased by on‐resonance saturation and dipolar order contributions, MRM 2023
+2. J. Assländer et al., Generalized Bloch model: A theory for pulsed magnetization transfer, MRM 2022;87:2003-2017
+3. A. Pampel et al., Orientation dependence of magnetization transfer parameters in human white matter, NeuroImage 2015;114:136-146
+4. L. Chang et al., Linear least-squares method for unbiased estimation of T1 from SPGR signals, MRM 2008;60:496-501
+5. V. Yarnykh, Fast macromolecular proton fraction mapping from a single off-resonance magnetization transfer measurement, MRM 2012;68:166-178
+6. G. Helms et al., High-resolution maps of magnetization transfer with inherent correction for RF inhomogeneity and T1 relaxation obtained from 3D FLASH MRI, MRM 2008;60:1396-1407
+7. V. Yarnykh, Time-efficient, high-resolution, whole brain three-dimensional macromolecular proton fraction mapping, MRM 2016;75:2100-2106 
+8. J. Olesen et al., Tensor denoising of multidimensional MRI data, MRM 2022;89:1-13
+9. B. Avants et al., A reproducible evaluation of ANTs similarity metric performance in brain image registration, NeuroImage 2011;2033-2044
+10. L. Soustelle et al., Determination of optimal parameters for 3D single‐point macromolecular proton fraction mapping at 7T in healthy and demyelinated mouse brain, MRM 2021;85:369-379 
 

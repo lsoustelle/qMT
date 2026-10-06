@@ -86,6 +86,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--n_sos",       "-s", type=int, default=1, help="Number of first multi-TE to consider for Sum-of-Square (default: 1 = no SoS).")
     parser.add_argument("--refvfa_reg",  "-r", default=None, help="Volume's label used as the motion-correction reference among the VFA stack (vfa0,vfa1,...,vfaN).\n"
                                                                   "(default: the last --VFA entry, typically the T1w volume in the usual 2-FA PDw+T1w case -- 'vfa1').")
+    parser.add_argument("--mask_outputs","-j", action="store_true", help="Apply brain mask on pre-processed VFA, MT and B1 outputs.")
     parser.add_argument("--nworkers",   "-n", type=int, default=1, help="Number of threads for operations (default: 1).")
     parser.add_argument("--keep_tmp",   "-k", action="store_true", help="Keep temporary files.")
     parser.add_argument("--verbose",    "-v", action="store_true", help="High verbosity mode.")
@@ -182,6 +183,9 @@ def validate_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
 
     # Skull-stripping weights
     v["synthstrip_weights"] = get_synthstrip_weights()
+
+    # Mask outputs
+    v["mask_outputs"] = True if args.mask_outputs else False
 
     # Keep tmp
     global flag_keep_tmp
@@ -474,7 +478,8 @@ def main():
             e["denoised"], anat_masked_path, out_path,
             transforms=[e["moco_transform"], to_anat_transform], verbose=verbose,
         )
-        _imagemath(3, out_path, "m", out_path, mask_anat_path)
+        if v["mask_output"]:
+            _imagemath(3, out_path, "m", out_path, mask_anat_path)
         e["in_anat"] = out_path
     print("--- preproc-qMT - Step 5: done\n")
 
@@ -493,7 +498,8 @@ def main():
     _imagemath(3, b1_in_anat_path, "/", v["b1_path"], v["b1_fac"])
     _apply_transforms(b1_in_anat_path, anat_denn4_path, b1_in_anat_path, transforms=None, verbose=verbose)
     _imagemath(3, b1_in_anat_path, "G", b1_in_anat_path, 3)
-    _imagemath(3, b1_in_anat_path, "m", b1_in_anat_path, mask_anat_path)
+    if v["mask_output"]:
+        _imagemath(3, b1_in_anat_path, "m", b1_in_anat_path, mask_anat_path)
     print("--- preproc-qMT - Step 7: done\n")
 
     print(f"  VFA stack : {vfa_in_anat_path}")

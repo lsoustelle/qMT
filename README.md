@@ -27,9 +27,9 @@ The latter is intended to be used with MT-weighted data prepared with sine-modul
 Efficient pre-processing pipeline: (i) [MP-PCA denoising](https://github.com/lsoustelle/tMPPCA)/SoS (optional) [8], (ii) realign MT/VFA data [9], and (iii) register to common anatomical space & reslice B<sub>1</sub> map). 
 Outputs are data-fitting-ready: MT0/MTw (`MT.nii.gz`), VFA (`VFA.nii.gz`), B<sub>1</sub> map (`B1_MAP.nii.gz`) in relative unit and brain mask (`MASK_ANAT.nii.gz`).
 ```bash
-preproc-qMT --anat ${FLD_DATA}/ANAT.nii \
-            --VFA ${FLD_DATA}/PDw.nii,${FLD_DATA}/T1w.nii \
-            --MT ${FLD_DATA}/MT0.nii,${FLD_DATA}/MTw.nii \
+preproc-qMT --anat ${DATA_FLD}/ANAT.nii \
+            --VFA ${DATA_FLD}/PDw.nii,${DATA_FLD}/T1w.nii \
+            --MT ${DATA_FLD}/MT0.nii,${DATA_FLD}/MTw.nii \
             --B1 B1map_raw.nii --B1_fac 800 \
             --mppca --n_sos 1 \
             --output_dir ${TMP_FLD}/ \

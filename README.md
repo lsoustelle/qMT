@@ -38,7 +38,7 @@ preproc-qMT --anat ${DATA_FLD}/ANAT.nii \
 Set `--B1_fac` to `1` if no normalization is required.
 See the `--help` option for detailed information.
 
-#### Joint Single-Point qMT
+#### Joint Single-Point qMT (3T)
 ```bash
 fit-JSPqMT  ${TMP_FLD}/MT.nii.gz ${TMP_FLD}/VFA.nii.gz \
             ${RES_FLD}/MPF.nii.gz ${RES_FLD}/T1f.nii.gz \

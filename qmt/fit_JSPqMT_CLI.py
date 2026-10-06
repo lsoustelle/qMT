@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import warnings
 warnings.filterwarnings("ignore", message=".*has been enabled*", category=RuntimeWarning) # remove GIL warning
 import sys
@@ -55,8 +53,8 @@ def main():
                         \n\t [4] J. Assländer et al., Generalized Bloch model: A theory for pulsed magnetization transfer, MRM 2022;87:2003-2017 \
                         " 
     parser = argparse.ArgumentParser(description=text_description,formatter_class=RawTextHelpFormatter)
-    parser.add_argument('MT',           nargs="+",help="Input couple MT0/MTw NIfTI path(s) (comma-separated for 3D, single path for 4D)")
-    parser.add_argument('VFA',          nargs="+",help="Input VFA NIfTI path(s) (comma-separated for 3D, single path for 4D)")
+    parser.add_argument('MT',           help="Input couple MT0/MTw NIfTI path(s) (comma-separated for 3D, single path for 4D)")
+    parser.add_argument('VFA',          help="Input VFA NIfTI path(s) (comma-separated for 3D, single path for 4D)")
     parser.add_argument('MPF',          help="Output MPF NIfTI path")
     parser.add_argument('T1f',          help="Output T1f NIfTI path")
     parser.add_argument('--R1f',        help="Output R1f NIfTI path (optional)")
@@ -65,11 +63,11 @@ def main():
                                                                 "\t 2) Interdelay between Saturation pulse and Readout pulse (ms) \n"
                                                                 "\t 3) Readout pulse duration (ms) \n"
                                                                 "\t 4) Sequence Time-to-Repetition (TR; ms) \n"
-                                                                "e.g. --MTw_TIMINGS 12.0,2.1,1.0,30.0")
+                                                                "e.g. --MTw_TIMINGS 12.0,2.1,0.25,30.0")
     parser.add_argument('--VFA_TIMINGS',required=True, help="Sequence timings in ms (comma-separated), in this order:   \n"
                                                                 "\t 1) Readout pulse duration (ms) \n"
                                                                 "\t 2) Sequence Time-to-Repetition (TR; ms) \n"
-                                                                "e.g. --VFA_TIMINGS 1.0,30.0")
+                                                                "e.g. --VFA_TIMINGS 0.25,30.0")
     parser.add_argument('--MTw_PARX',   required=True,  help="Saturation parameters (comma-separated), in this order:   \n"
                                                                 "\t 1) Readout flip angle of MT0/MTw (deg; single common value) \n"
                                                                 "\t 2) Readout pulse shape (Hann, BP) \n" 
@@ -77,11 +75,11 @@ def main():
                                                                 "\t 4) Saturation pulse off-resonance frequency (Hz) \n"
                                                                 "\t 5) Saturation pulse shape (Hann-Sine, GaussHann-Sine, Gauss-Sine) \n" 
                                                                 "\t 6) Gaussian saturation pulse FWHM (Hz; not used if purely Hann-Sine-shaped) \n"
-                                                                "e.g. --MTw_PARX 10.0,BP,560.0,4000.0,Hann-Sine")
+                                                                "e.g. --MTw_PARX 14.0,BP,560.0,4000.0,Hann-Sine")
     parser.add_argument('--VFA_PARX',   required=True,  help="Readout pulse parameters of experiments (comma-separated), in this order:   \n"
                                                                 "\t 1) Readout flip angles [VFA1, VFA2, ..., VFAn] (deg; same order as in provided VFA volume(s)) \n"
                                                                 "\t 2) Readout pulse shape (Hann, BP) \n" 
-                                                                "e.g. --VFA_PARX 6,10,25,BP")
+                                                                "e.g. --VFA_PARX 6,14,33,BP")
     parser.add_argument('--B1',                 nargs="?",help="Input normalized B1 map NIfTI path (strongly advised)")
     parser.add_argument('--B0',                 nargs="?",help="Input B0 map NIfTI path (in Hz; computation time is much longer)")
     parser.add_argument('--mask',               nargs="?",help="Input Mask binary NIfTI path")

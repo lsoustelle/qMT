@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 preproc_qMT.py - Preprocessing pipeline for quantitative Magnetization Transfer (qMT) MRI data.
 
@@ -14,8 +13,8 @@ Performs:
        *original* (non-N4, non-extracted) volumes, followed by masking
     6) Reassembly of the corrected VFA and MT volumes into two separate 4D
        NIfTI stacks
-    7) B1 map preprocessing: intensity normalization, reslice onto the anatomical grid, Gaussian
-       smoothing and masking
+    7) B1 map preprocessing: intensity normalization, registration (optional), reslice onto the anatomical grid, 
+       Gaussian smoothing and masking
 """
 
 import argparse
@@ -86,10 +85,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--n_sos",       "-s", type=int, default=1, help="Number of first multi-TE to consider for Sum-of-Square (default: 1 = no SoS).")
     parser.add_argument("--refvfa_reg",  "-r", default=None, help="Volume's label used as the motion-correction reference among the VFA stack (vfa0,vfa1,...,vfaN).\n"
                                                                   "(default: the last --VFA entry, typically the T1w volume in the usual 2-FA PDw+T1w case -- 'vfa1').")
-    parser.add_argument("--mask_outputs","-j", action="store_true", help="Apply brain mask on pre-processed VFA, MT and B1 outputs.")
-    parser.add_argument("--nworkers",   "-n", type=int, default=1, help="Number of threads for operations (default: 1).")
-    parser.add_argument("--keep_tmp",   "-k", action="store_true", help="Keep temporary files.")
-    parser.add_argument("--verbose",    "-v", action="store_true", help="High verbosity mode.")
+    parser.add_argument("--B1_mag",            default=None, help="Magnitude B1 NIfTI path; providing it orders a co-registration onto the VFA reference.")
+    parser.add_argument("--mask_outputs",      action="store_true", help="Apply brain mask on pre-processed VFA, MT and B1 outputs.")
+    parser.add_argument("--nworkers",   "-n",  type=int, default=1, help="Number of threads for operations (default: 1).")
+    parser.add_argument("--keep_tmp",   "-k",  action="store_true", help="Keep temporary files.")
+    parser.add_argument("--verbose",    "-v",  action="store_true", help="High verbosity mode.")
 
     return parser.parse_args()
 
@@ -118,11 +118,17 @@ def validate_args(args: argparse.Namespace, parser: argparse.ArgumentParser) -> 
         parser.error(f"--anat: file not found: {anat_path}")
     v["anat_path"] = anat_path
 
-    b1_path = Path(args.B1)
-    if not b1_path.is_file():
-        parser.error(f"--B1: file not found: {b1_path}")
-    v["b1_path"] = b1_path
+    b1map_path = Path(args.B1)
+    if not b1map_path.is_file():
+        parser.error(f"--B1: file not found: {b1map_path}")
+    v["b1map_path"] = b1map_path
     v["b1_fac"]  = args.B1_fac
+
+    if args.B1_mag is not None:
+        b1_mag_path = Path(args.B1_mag)
+        if not b1_mag_path.is_file():
+            parser.error(f"--B1_mag: file not found: {b1_mag_path}")
+    v["b1_mag_path"] = args.B1_mag
 
     # VFA (N>=2 flip angles) / MT (exactly MT0,MTw)
     vfa_paths   = _parse_path_list(args.VFA, "vfa", parser, expected_n=None)
@@ -228,7 +234,7 @@ def _synthstrip(in_path: Path, mask_out_path: Path, weights_path: Path, nthreads
           "--model", weights_path, "--num-threads", nthreads], verbose=verbose)
     return Path(mask_out_path)
 
-def _ants_rigid_register(fixed: Path, moving: Path, out_prefix: Path,
+def _ants_rigid_register( fixed: Path, moving: Path, out_prefix: Path,
                           convergence: str, shrink_factors: str, smoothing_sigmas: str,
                           verbose: bool = False) -> Path:
     warped_path = Path(f"{out_prefix}Warped.nii.gz")
@@ -248,7 +254,7 @@ def _ants_rigid_register(fixed: Path, moving: Path, out_prefix: Path,
     return Path(f"{out_prefix}0GenericAffine.mat")
 
 def _apply_transforms(in_path: Path, ref_path: Path, out_path: Path,
-                       transforms: list[Path] | None = None, verbose: bool = False) -> Path:
+                      transforms: list[Path] | None = None, verbose: bool = False) -> Path:
     # transforms=None (or []) => identity resample onto ref_path's grid, no -t flag.
     cmd = ["antsApplyTransforms", "-d", "3", "-v", "1",
            "-i", str(in_path), "-o", str(out_path), "-r", str(ref_path)]
@@ -403,6 +409,9 @@ def main():
     anat_den_path       = tmp_fld / "ANAT_den.nii"
     anat_denn4_path     = tmp_fld / "ANAT_denN4.nii"
     anat_masked_path    = tmp_fld / "ANAT_denN4_masked.nii"
+    b1mag_in_anat_path  = tmp_fld / "B1_mag.nii.gz"
+    b1mag_masked_path   = tmp_fld / "B1_mag_masked.nii.gz"
+    b1mag_mask_path     = tmp_fld / "B1_mag_mask.nii.gz"
     b1_in_anat_path     = output_dir / "B1_MAP.nii.gz"
     mask_anat_path      = output_dir / "MASK_ANAT.nii.gz"
     mt_in_anat_path     = output_dir / "MT.nii.gz"
@@ -421,7 +430,6 @@ def main():
 
     # 2. VFA/MT: MPPCA/SoS, brain masks, N4+brain extraction
     print("--- preproc-qMT - Step 2: MP-PCA/SoS + brain masking + bias correction of VFA/MT volumes")
-
     _mppca_sos_denoise(entries, tmp_fld, do_mppca=v["mppca"], mppca_window=v["mppca_window"],
                         n_sos=v["n_sos"], nthreads=nthreads, parser=parser)
 
@@ -449,10 +457,8 @@ def main():
         warped_path = Path(f"{out_prefix}Warped.nii.gz")
         if e['role'] != refvfa_reg:
             print(f"  Registering '{e['role']}' -> '{refvfa_reg}'...")
-        _ants_rigid_register(
-            fixed=ref_entry["N4be"], moving=e["N4be"], out_prefix=out_prefix,
-            convergence="250x100,1e-6,10",
-            shrink_factors="2x1", smoothing_sigmas="1x0vox", verbose=verbose)
+        _ants_rigid_register(fixed=ref_entry["N4be"], moving=e["N4be"], out_prefix=out_prefix,
+                             convergence="250x100,1e-6,10", shrink_factors="2x1", smoothing_sigmas="1x0vox", verbose=verbose)
         e["moco_transform"] = Path(f"{out_prefix}0GenericAffine.mat")
     print("--- preproc-qMT - Step 3: done\n")
 
@@ -460,11 +466,8 @@ def main():
     print(f"--- preproc-qMT - Step 4: register reference contrast '{refvfa_reg}' onto ANAT")
     to_anat_prefix = tmp_fld / f"{refvfa_reg}_toAnat_"
     to_anat_warped_path = Path(f"{to_anat_prefix}Warped.nii.gz")
-    _ants_rigid_register(
-        fixed=anat_masked_path, moving=ref_entry["N4be"], out_prefix=to_anat_prefix,
-        convergence="100,1e-6,10",
-        shrink_factors="1", smoothing_sigmas="0vox", verbose=verbose,
-    )
+    _ants_rigid_register(fixed=anat_masked_path, moving=ref_entry["N4be"], out_prefix=to_anat_prefix,
+                         convergence="100,1e-6,10", shrink_factors="1", smoothing_sigmas="0vox", verbose=verbose)
     to_anat_transform = Path(f"{to_anat_prefix}0GenericAffine.mat")
     print("--- preproc-qMT - Step 4: done\n")
 
@@ -474,10 +477,8 @@ def main():
         out_path = tmp_fld / f"{e['role']}_inANAT.nii.gz"
         # transform order matches the original script: per-volume MoCo transform
         # first, then the reference-to-ANAT transform.
-        _apply_transforms(
-            e["denoised"], anat_masked_path, out_path,
-            transforms=[e["moco_transform"], to_anat_transform], verbose=verbose,
-        )
+        _apply_transforms(e["denoised"], anat_masked_path, out_path,
+                          transforms=[e["moco_transform"], to_anat_transform], verbose=verbose)
         if v["mask_outputs"]:
             _imagemath(3, out_path, "m", out_path, mask_anat_path)
         e["in_anat"] = out_path
@@ -490,13 +491,23 @@ def main():
     mt_group = [e["in_anat"] for e in entries if e["modality"] == "mt"]
 
     _imagemath(4, vfa_in_anat_path, "TimeSeriesAssemble", 1, 0, *vfa_group)
-    _imagemath(4, mt_in_anat_path, "TimeSeriesAssemble", 1, 0, *mt_group)
+    _imagemath(4, mt_in_anat_path,  "TimeSeriesAssemble", 1, 0, *mt_group)
     print("--- preproc-qMT - Step 6: done\n")
 
     # 7. B1 map: scale, resample onto ANAT grid, smooth, mask
-    print("--- preproc-qMT - Step 7: B1 map preprocessing")
-    _imagemath(3, b1_in_anat_path, "/", v["b1_path"], v["b1_fac"])
-    _apply_transforms(b1_in_anat_path, anat_denn4_path, b1_in_anat_path, transforms=None, verbose=verbose)
+    _imagemath(3, b1_in_anat_path, "/", v["b1map_path"], v["b1_fac"])
+    if v["b1_mag_path"] is not None: # -> registration requested
+        print("--- preproc-qMT - Step 7: B1 map preprocessing (normalizing, registering and smoothing)")
+        _synthstrip(v["b1_mag_path"], b1mag_mask_path, weights_path, nthreads, verbose=verbose)
+        _imagemath(3, b1mag_masked_path, "m", v["b1_mag_path"], b1mag_mask_path)
+        _ants_rigid_register(fixed=anat_masked_path, moving=b1mag_masked_path, out_prefix=tmp_fld/"B1mag_toAnat_",
+                             convergence="100,1e-6,10", shrink_factors="1", smoothing_sigmas="0vox", verbose=verbose)
+        B1to_anat_transform = Path(tmp_fld/"B1mag_toAnat_0GenericAffine.mat")
+        _apply_transforms(b1_in_anat_path, anat_masked_path, b1_in_anat_path,
+                          transforms=[B1to_anat_transform], verbose=verbose)
+    else: # only reslice
+        print("--- preproc-qMT - Step 7: B1 map preprocessing (normalizing, reslicing and smoothing)")
+        _apply_transforms(b1_in_anat_path, anat_masked_path, b1_in_anat_path, transforms=None, verbose=verbose)
     _imagemath(3, b1_in_anat_path, "G", b1_in_anat_path, 3)
     if v["mask_outputs"]:
         _imagemath(3, b1_in_anat_path, "m", b1_in_anat_path, mask_anat_path)

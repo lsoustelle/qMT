@@ -478,7 +478,7 @@ def main():
             e["denoised"], anat_masked_path, out_path,
             transforms=[e["moco_transform"], to_anat_transform], verbose=verbose,
         )
-        if v["mask_output"]:
+        if v["mask_outputs"]:
             _imagemath(3, out_path, "m", out_path, mask_anat_path)
         e["in_anat"] = out_path
     print("--- preproc-qMT - Step 5: done\n")
@@ -498,7 +498,7 @@ def main():
     _imagemath(3, b1_in_anat_path, "/", v["b1_path"], v["b1_fac"])
     _apply_transforms(b1_in_anat_path, anat_denn4_path, b1_in_anat_path, transforms=None, verbose=verbose)
     _imagemath(3, b1_in_anat_path, "G", b1_in_anat_path, 3)
-    if v["mask_output"]:
+    if v["mask_outputs"]:
         _imagemath(3, b1_in_anat_path, "m", b1_in_anat_path, mask_anat_path)
     print("--- preproc-qMT - Step 7: done\n")
 

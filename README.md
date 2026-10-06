@@ -32,7 +32,7 @@ preproc-qMT --anat ${DATA_FLD}/ANAT.nii \
             --MT ${DATA_FLD}/MT0.nii,${DATA_FLD}/MTw.nii \
             --B1 B1map_raw.nii --B1_fac 800 \
             --mppca --n_sos 1 \
-            --output_dir ${TMP_FLD}/ \
+            --output_dir ${TMP_FLD}/ --mask_outputs \
             --nworkers 12
 ```
 Set `--B1_fac` to `1` if no normalization is required.

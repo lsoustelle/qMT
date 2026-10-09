@@ -53,8 +53,8 @@ def main():
                         \n\t [4] J. Assländer et al., Generalized Bloch model: A theory for pulsed magnetization transfer, MRM 2022;87:2003-2017 \
                         " 
     parser = argparse.ArgumentParser(description=text_description,formatter_class=RawTextHelpFormatter)
-    parser.add_argument('MT',           help="Input couple MT0/MTw NIfTI path(s) (comma-separated for 3D, single path for 4D)")
-    parser.add_argument('VFA',          help="Input VFA NIfTI path(s) (comma-separated for 3D, single path for 4D)")
+    parser.add_argument('MT',           nargs="+", help="Input couple MT0/MTw NIfTI path(s) (comma-separated for 3D, single path for 4D)")
+    parser.add_argument('VFA',          nargs="+", help="Input VFA NIfTI path(s) (comma-separated for 3D, single path for 4D)")
     parser.add_argument('MPF',          help="Output MPF NIfTI path")
     parser.add_argument('T1f',          help="Output T1f NIfTI path")
     parser.add_argument('--R1f',        help="Output R1f NIfTI path (optional)")

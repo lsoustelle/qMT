@@ -84,11 +84,11 @@ def main():
     parser.add_argument('--B0',                 nargs="?",help="Input B0 map NIfTI path (in Hz; computation time is much longer)")
     parser.add_argument('--mask',               nargs="?",help="Input Mask binary NIfTI path")
     parser.add_argument('--nworkers',           nargs="?",type=int, default=1, help="Use this for multi-threading acceleration (default: 1)")
-    parser.add_argument('--qMTconstraint_PARX', help="Constained parameters for SP-qMT estimation (comma-separated) in this order:\n"  
+    parser.add_argument('--qMTconstraint_PARX', help="Constained parameters for JSP-qMT estimation (comma-separated) in this order:\n"  
                                                                 "\t 1) R1fT2f (default: 0.0158) \n"
-                                                                "\t 2) T2b (s; default: 10.0e-6 s) \n"
+                                                                "\t 2) T2b (us; default: 10.0 us) \n"
                                                                 "\t 3) R (s-1; default: 21.1 s-1) \n"
-                                                                "e.g. --qMTconstraint_PARX 0.0158,10.0e-6,21.1")
+                                                                "e.g. --qMTconstraint_PARX 0.0158,10.0,21.1")
     parser.add_argument('--R1b',          default=None, help="Macromolecular R1b value (in s-1), fixed for all voxels (default: R1b=R1f) \n" 
                                                                 "e.g. --R1b 6.5")
     parser.add_argument('--use_GBM', action='store_true', help="Use the Generalized Bloch Model")
@@ -170,7 +170,7 @@ def main():
     else:
         print('--qMTconstraint_PARX not set, setting to default values \n')
         qMTcontrainst_parx = qMTcontraint_NT(   R1fT2f  = 0.0158,
-                                                T2b     = 10.0e-6,
+                                                T2b     = 10.0,
                                                 R       = 21.1,
                                                 R1b     = float(args.R1b))
 
@@ -222,7 +222,7 @@ def main():
     print('')
     print('Summary of constraint qMT parameters:')
     print('\t R1fT2f = {:.4f}'.format(qMTcontrainst_parx.R1fT2f))
-    print('\t T2b\t= {:.1f} us'.format(qMTcontrainst_parx.T2b*1e6))
+    print('\t T2b\t= {:.1f} us'.format(qMTcontrainst_parx.T2b))
     print('\t R \t= {:.1f} s-1'.format(qMTcontrainst_parx.R))
     print('\t R1b \t= R1f' if qMTcontrainst_parx.R1b == -1 else '\t R1b \t= {:.1f} s-1'.format(qMTcontrainst_parx.R1b))
     print('')
@@ -434,7 +434,7 @@ def func_prepare_qMTparx(B1_data,B0_data,FLAG_useGBM):
     MTw_SATw1RMS_nom       = gamma*MTw_SATB1peak_nom*numpy.sqrt(MTw_SATPI)
     if any(B0_data != 0.0): # compute G for each voxel
         print('--- Computing G(delta_f) for all voxels (B0 corrected) ...')
-        T2b_array       = numpy.full(B0_data.shape[0],qMTcontrainst_parx.T2b)[numpy.newaxis,:].T
+        T2b_array       = numpy.full(B0_data.shape[0],qMTcontrainst_parx.T2b*1e-6)[numpy.newaxis,:].T
         delta_f_array   = numpy.full(B0_data.shape[0],MTw_parx.delta_f)[numpy.newaxis,:].T
         list_iterable   = numpy.hstack((T2b_array,delta_f_array,B0_data))
         start_time = time.time()
@@ -444,7 +444,7 @@ def func_prepare_qMTparx(B1_data,B0_data,FLAG_useGBM):
         print("--- ... Done in {:.3f} seconds".format(delay - start_time))
         MTw_SATG  = numpy.array(MTw_SATG)[numpy.newaxis,:].T
     else: # same G for all voxels
-        MTw_SATG = func_computeG_SuperLorentzian(qMTcontrainst_parx.T2b,MTw_parx.delta_f,0)
+        MTw_SATG = func_computeG_SuperLorentzian(qMTcontrainst_parx.T2b*1e-6,MTw_parx.delta_f,0)
         MTw_SATG = numpy.tile(MTw_SATG,B1_data.shape[0])[numpy.newaxis,:].T
     MTw_SATw1RMS_array = MTw_SATw1RMS_nom * B1_data
     MTw_SATWb_array     = (numpy.pi * MTw_SATw1RMS_nom**2  * MTw_SATG) * B1_data**2
@@ -481,7 +481,7 @@ def func_prepare_qMTparx(B1_data,B0_data,FLAG_useGBM):
         # MT0/MTw experiments
         MTw_ROR2sl_array= numpy.zeros((len(B1_data),1))
         ROR2sl_list     = numpy.zeros((len(rB1_grid),1))
-        LUT_Gval        = compute_greens_LUT(MTw_parx.ROdur, 1/qMTcontrainst_parx.T2b, N=100)
+        LUT_Gval        = compute_greens_LUT(MTw_parx.ROdur, 1/(qMTcontrainst_parx.T2b*1e-6), N=100)
         LUT_Gval_iter   = [LUT_Gval] * len(rB1_grid)
         PW_iter         = [MTw_parx.ROdur] * len(rB1_grid)
         omega_y_iter    = MTw_parx.ROFA*numpy.pi/180.0/MTw_parx.ROdur/MTw_RO_AI*MTw_RO_shape(MTw_RO_t_grid) # rad/s
@@ -498,7 +498,7 @@ def func_prepare_qMTparx(B1_data,B0_data,FLAG_useGBM):
         # VFA experiments
         VFA_ROR2sl_array= numpy.zeros((len(B1_data),len(VFA_parx.ROFA)))
         ROR2sl_list     = numpy.zeros((len(rB1_grid),len(VFA_parx.ROFA)))
-        LUT_Gval        = compute_greens_LUT(VFA_parx.ROdur, 1/qMTcontrainst_parx.T2b, N=100)
+        LUT_Gval        = compute_greens_LUT(VFA_parx.ROdur, 1/(qMTcontrainst_parx.T2b*1e-6), N=100)
         LUT_Gval_iter   = [LUT_Gval] * len(rB1_grid)
         PW_iter         = [MTw_parx.ROdur] * len(rB1_grid)
         for ii in range(len(VFA_parx.ROFA)):
@@ -513,11 +513,11 @@ def func_prepare_qMTparx(B1_data,B0_data,FLAG_useGBM):
         # RO Pulse AI/PI, w1RMS nominal & actual Wb arrays
         VFA_RO_B1peak_nom   = VFA_parx.ROFA*(numpy.pi/180) / (gamma*VFA_RO_AI*VFA_parx.ROdur)
         VFA_RO_w1RMS_nom    = gamma*VFA_RO_B1peak_nom*numpy.sqrt(VFA_RO_PI)    
-        VFA_RO_G            = func_computeG_SphericalLineshape(qMTcontrainst_parx.T2b,0) # assume no dB0 impact
+        VFA_RO_G            = func_computeG_SphericalLineshape(qMTcontrainst_parx.T2b*1e-6,0) # assume no dB0 impact
         VFA_RO_G            = numpy.tile(VFA_RO_G,B1_data.shape[0])[numpy.newaxis,:].T
         MTw_RO_B1peak_nom   = MTw_parx.ROFA*(numpy.pi/180) / (gamma*MTw_RO_AI*MTw_parx.ROdur)
         MTw_RO_w1RMS_nom    = gamma*MTw_RO_B1peak_nom*numpy.sqrt(MTw_RO_PI)   
-        MTw_RO_G            = func_computeG_SphericalLineshape(qMTcontrainst_parx.T2b,0.0) # assume no dB0 impact
+        MTw_RO_G            = func_computeG_SphericalLineshape(qMTcontrainst_parx.T2b*1e-6,0.0) # assume no dB0 impact
         MTw_RO_G            = numpy.tile(MTw_RO_G,B1_data.shape[0])[numpy.newaxis,:].T    
         MTw_WbRO_array      = (numpy.pi * MTw_RO_w1RMS_nom**2   * MTw_RO_G)  * B1_data**2
         VFA_WbRO_array      = (numpy.pi * VFA_RO_w1RMS_nom**2   * VFA_RO_G)  * B1_data**2

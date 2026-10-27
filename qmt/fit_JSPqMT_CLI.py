@@ -89,6 +89,8 @@ def main():
                                                                 "\t 2) T2b (s; default: 10.0e-6 s) \n"
                                                                 "\t 3) R (s-1; default: 21.1 s-1) \n"
                                                                 "e.g. --qMTconstraint_PARX 0.0158,10.0e-6,21.1")
+    parser.add_argument('--R1b',          default=None, help="Macromolecular R1b value (in s-1), fixed for all voxels (default: R1b=R1f) \n" 
+                                                                "e.g. --R1b 6.5")
     parser.add_argument('--use_GBM', action='store_true', help="Use the Generalized Bloch Model")
     parser.add_argument('--cpp_opt', action='store_true', help="Use compiled C++ simulation kernel and optimizer (nlopt)")
 
@@ -149,7 +151,13 @@ def main():
                         ROdur      = float(args.VFA_TIMINGS[0])*1e-3, # convert to sec
                         TR         = float(args.VFA_TIMINGS[1])*1e-3)
 
-    qMTcontraint_NT = collections.namedtuple('qMTcontraint_NT', 'R1fT2f T2b R')
+    if args.R1b is not None:
+        if float(args.R1b) <= 0.0:
+            parser.error('Provided --R1b should be > 0.0')
+        args.R1b = float(args.R1b)
+    else:
+        args.R1b = -1 # default R1b=R1f
+    qMTcontraint_NT = collections.namedtuple('qMTcontraint_NT', 'R1fT2f T2b R R1b')
     if args.qMTconstraint_PARX is not None:   
         args.qMTconstraint_PARX  = args.qMTconstraint_PARX.split(',')
         if len(args.qMTconstraint_PARX) != 3: 
@@ -157,45 +165,16 @@ def main():
                              --- expected 3, found {})'.format(len(args.qMTconstraint_PARX)))
         qMTcontrainst_parx = qMTcontraint_NT(   R1fT2f = float(args.qMTconstraint_PARX[0]), 
                                                 T2b    = float(args.qMTconstraint_PARX[1]),
-                                                R      = float(args.qMTconstraint_PARX[2]))         
+                                                R      = float(args.qMTconstraint_PARX[2]), 
+                                                R1b    = float(args.R1b))
     else:
         print('--qMTconstraint_PARX not set, setting to default values \n')
-        qMTcontrainst_parx = qMTcontraint_NT(   R1fT2f = 0.0158, 
-                                                T2b    = 10.0e-6,
-                                                R      = 21.1)  
+        qMTcontrainst_parx = qMTcontraint_NT(   R1fT2f  = 0.0158,
+                                                T2b     = 10.0e-6,
+                                                R       = 21.1,
+                                                R1b     = float(args.R1b))
 
-    FLAG_useGBM = True if args.use_GBM else False
-
-    print('Summary of input MTw/MT0 sequence parameters:')
-    print('\t Saturation flip angle: {:.1f} deg'.format(MTw_parx.FAsat))
-    print('\t Saturation pulse off-resonance frenquency: {:.1f} Hz'.format(MTw_parx.delta_f))
-    print('\t Saturation pulse shape: {}'.format(MTw_parx.MTshape))
-    if len(args.MTw_PARX) > 5:
-        print('\t Gaussian pulse FWHM: {:.1f} Hz'.format(MTw_parx.FWHM))
-    print('\t Readout flip angle: {:.1f} deg'.format(MTw_parx.ROFA))
-    print('\t Readout pulse duration: {:.2f} ms'.format(MTw_parx.ROdur*1e3))
-    print('\t Readout pulse shape: {}'.format(MTw_parx.ROshape))
-    print('\t Saturation pulse duration: {:.1f} ms'.format(MTw_parx.Tm*1e3))
-    print('\t Interdelay saturation pulse <--> Readout pulse: {:.2f} ms'.format(MTw_parx.Ts*1e3))
-    print('\t Sequence Time-to-Repetition: {:.1f} ms'.format(MTw_parx.TR*1e3))
-    print('')
-    print('Summary of input VFA sequence parameters:')
-    print('\t Readout flip angles: [' + ', '.join('{:.1f}'.format(v) for v in VFA_parx.ROFA) + '] deg')
-    print('\t Readout pulse duration: {:.2f} ms'.format(VFA_parx.ROdur*1e3))
-    print('\t Readout pulse shape: {}'.format(VFA_parx.ROshape))
-    print('\t Sequence Time-to-Repetition: {:.1f} ms'.format(VFA_parx.TR*1e3))
-    print('')
-    print('Summary of constraint qMT parameters:')
-    print('\t R1fT2f: {:.4f}'.format(qMTcontrainst_parx.R1fT2f))
-    print('\t T2b:\t {:.1f} us'.format(qMTcontrainst_parx.T2b*1e6))
-    print('\t R:\t {:.1f} s-1'.format(qMTcontrainst_parx.R))
-    print('')
-    if FLAG_useGBM:
-        print('Using Generalized Bloch Model (readout pulses)')
-    print('')
-
-    # last check before going in
-    for field in qMTcontrainst_parx._fields:
+    for field in qMTcontrainst_parx._fields[0:3]: # loop only over T2b, R and R1fT2f (skip R1b)
         if getattr(qMTcontrainst_parx, field) < 0:
             parser.error('All qMTcontrainst_parx values should be positive')
     for field in VFA_parx._fields:
@@ -218,6 +197,38 @@ def main():
         parser.error('Unrecognized MT saturation pulse shape (allowed: "Hann-Sine", "GaussHann-Sine" or "Gauss-Sine")')
     if VFA_parx.ROshape not in ("Hann", "BP"):
         parser.error('Unrecognized VFA readout pulse shape (allowed: "Hann" or "BP")')
+
+    FLAG_useGBM = True if args.use_GBM else False
+
+    # Print parameters summary
+    print('Summary of input MTw/MT0 sequence parameters:')
+    print('\t Saturation flip angle: {:.1f} deg'.format(MTw_parx.FAsat))
+    print('\t Saturation pulse off-resonance frenquency: {:.1f} Hz'.format(MTw_parx.delta_f))
+    print('\t Saturation pulse shape: {}'.format(MTw_parx.MTshape))
+    if len(args.MTw_PARX) > 5:
+        print('\t Gaussian pulse FWHM: {:.1f} Hz'.format(MTw_parx.FWHM))
+    print('\t Readout flip angle: {:.1f} deg'.format(MTw_parx.ROFA))
+    print('\t Readout pulse duration: {:.2f} ms'.format(MTw_parx.ROdur*1e3))
+    print('\t Readout pulse shape: {}'.format(MTw_parx.ROshape))
+    print('\t Saturation pulse duration: {:.1f} ms'.format(MTw_parx.Tm*1e3))
+    print('\t Interdelay saturation pulse <--> Readout pulse: {:.2f} ms'.format(MTw_parx.Ts*1e3))
+    print('\t Sequence Time-to-Repetition: {:.1f} ms'.format(MTw_parx.TR*1e3))
+    print('')
+    print('Summary of input VFA sequence parameters:')
+    print('\t Readout flip angles: [' + ', '.join('{:.1f}'.format(v) for v in VFA_parx.ROFA) + '] deg')
+    print('\t Readout pulse duration: {:.2f} ms'.format(VFA_parx.ROdur*1e3))
+    print('\t Readout pulse shape: {}'.format(VFA_parx.ROshape))
+    print('\t Sequence Time-to-Repetition: {:.1f} ms'.format(VFA_parx.TR*1e3))
+    print('')
+    print('Summary of constraint qMT parameters:')
+    print('\t R1fT2f = {:.4f}'.format(qMTcontrainst_parx.R1fT2f))
+    print('\t T2b\t= {:.1f} us'.format(qMTcontrainst_parx.T2b*1e6))
+    print('\t R \t= {:.1f} s-1'.format(qMTcontrainst_parx.R))
+    print('\t R1b \t= R1f' if qMTcontrainst_parx.R1b == -1 else '\t R1b \t= {:.1f} s-1'.format(qMTcontrainst_parx.R1b))
+    print('')
+    if FLAG_useGBM:
+        print('Using Generalized Bloch Model (readout pulses)')
+    print('')
 
     #### check input data
     # check MT0/MTw data
@@ -343,7 +354,7 @@ def main():
         # prepare global parameters to be passed as C++ stages
         glob_data = numpy.array([   MTw_parx.TR, MTw_parx.Ts, MTw_parx.Tm, MTw_parx.ROdur, MTw_parx.delta_f, # MTw_parx: TR, Ts, Tm, ROdur, Df
                                     VFA_parx.TR, VFA_parx.ROdur, len(VFA_parx.ROFA), # VFA_parx: TR, ROdur, N_VFA
-                                    qMTcontrainst_parx.R, qMTcontrainst_parx.R1fT2f]) # qMTcontrainst_parx: R, R1fT2f
+                                    qMTcontrainst_parx.R, qMTcontrainst_parx.R1fT2f, qMTcontrainst_parx.R1b]) # qMTcontrainst_parx: R, R1fT2f, R1b
         opt_JSPqMT.set_global_data(glob_data)
         if FLAG_useGBM:
             fit_func = opt_JSPqMT.fit_JSPqMT_nlopt_GBM
@@ -703,7 +714,7 @@ def func_JSPqMT_py(xData,R1f,M0b):
     VFA_ROdur       = VFA_parx.ROdur
 
     ### qMT parx
-    R1b         = R1f
+    R1b         = R1f if qMTcontrainst_parx.R1b == -1 else qMTcontrainst_parx.R1b
     M0f         = 1-M0b
     R           = qMTcontrainst_parx.R
     R2f         = 1/(qMTcontrainst_parx.R1fT2f/R1f)
@@ -824,7 +835,9 @@ def func_JSPqMT_py(xData,R1f,M0b):
         Mss = Mss/Mss[-1]
         Mxy_VFA[ii] = Mss[2]*numpy.sin(VFA_ROFA[ii])
 
-    return numpy.divide(numpy.concatenate((Mxy_VFA,[Mxy_MTw]),axis=0), Mxy_MT0, where=Mxy_MT0>0) # return Mxy/MT0 array
+    return numpy.divide(numpy.concatenate((Mxy_VFA,[Mxy_MTw]),axis=0), Mxy_MT0, 
+                        out=numpy.zeros_like(numpy.concatenate((Mxy_VFA,[Mxy_MTw]),axis=0)), 
+                        where=Mxy_MT0>0) # return Mxy/MT0 array
   
 def fit_JSPqMT_lsq_generic(xData,yData,model_func):
     with warnings.catch_warnings():

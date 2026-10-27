@@ -81,6 +81,7 @@ func_JSPqMT_GBM(const std::vector<double>& xData, double R1f, double M0b)
     int N_VFA           = global_data[7];
     double R            = global_data[8];
     double R1fT2f       = global_data[9];
+    double R1b          = (global_data[10] < 0) ? R1f : global_data[10];
 
     double MTw_SATw1RMS     = xData[0];
     double MTw_SATWb        = xData[1];
@@ -91,7 +92,6 @@ func_JSPqMT_GBM(const std::vector<double>& xData, double R1f, double M0b)
     double B0               = xData.back();
 
     // build matrices & compute steady-state
-    double R1b          = R1f;
     double M0f          = 1-M0b;
     double R2f          = 1/(R1fT2f/R1f);
     double MTw_WfSAT    = ( std::pow(MTw_SATw1RMS/(2*M_PI*( MTw_Df+B0)),2) + 
@@ -184,6 +184,7 @@ func_JSPqMT_Graham(const std::vector<double>& xData, double R1f, double M0b)
     int N_VFA           = global_data[7];
     double R            = global_data[8];
     double R1fT2f       = global_data[9];
+    double R1b          = (global_data[10] < 0) ? R1f : global_data[10];
 
     double MTw_SATw1RMS     = xData[0];
     double MTw_SATWb        = xData[1];
@@ -194,7 +195,6 @@ func_JSPqMT_Graham(const std::vector<double>& xData, double R1f, double M0b)
     double B0               = xData.back();
 
     // build matrices & compute steady-state
-    double R1b          = R1f;
     double M0f          = 1-M0b;
     double R2f          = 1/(R1fT2f/R1f);
     double MTw_WfSAT    = ( std::pow(MTw_SATw1RMS/(2*M_PI*( MTw_Df+B0)),2) + 
